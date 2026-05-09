@@ -5,6 +5,7 @@
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 *)
 open OUnit2
+open Austral_core.CRepr
 open Austral_core.CRenderer
 open Austral_core.Escape
 
@@ -17,12 +18,31 @@ let test_render_string _ =
   assert_equal (r_e (CString  (escape_string "abcd"))) "\"abcd\"";
   assert_equal (r_e (CString (escape_string "\""))) "\"\\\"\"";
   assert_equal (r_e (CString (escape_string "\"\"\""))) "\"\\\"\\\"\\\"\""
+
+let test_render_fptr_call _ =
+  let expr =
+    CFuncall (
+      "consume",
+      [
+        CFptrCall (
+          CVar "f",
+          CNamedType "au_int64_t",
+          [CNamedType "au_int64_t"],
+          [CInt "10"]
+        )
+      ]
+    )
+  in
+  assert_equal
+    (r_e expr)
+    "consume(((au_int64_t(*)(au_int64_t))(f))(10))"
   
   
   let suite =
     "CliUtil" >::: [
         "render_bool" >:: test_render_bool;
-        "render_string" >:: test_render_string
+        "render_string" >:: test_render_string;
+        "render_fptr_call" >:: test_render_fptr_call
       ]
   
   let _ = run_test_tt_main suite

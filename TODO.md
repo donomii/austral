@@ -28,10 +28,10 @@ Sources reviewed:
   - [ ] Add regression tests that compile generated C, not just typecheck.
   - Related upstream issues: #603, #598, #583.
 
-- [ ] Fix generated C for function-pointer calls.
-  - [ ] Reproduce nested function-pointer call used as another call argument.
-  - [ ] Remove the spurious semicolon in expression rendering.
-  - [ ] Add a codegen regression test.
+- [x] Fix generated C for function-pointer calls.
+  - [x] Reproduce nested function-pointer call used as another call argument.
+  - [x] Remove the spurious semicolon in expression rendering.
+  - [x] Add a codegen regression test.
   - Related upstream issue: #618.
 
 - [ ] Fix typeclass return-type polymorphism internal error.

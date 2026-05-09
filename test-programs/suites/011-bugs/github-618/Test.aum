@@ -1,0 +1,16 @@
+module body Test is
+    function double(x: Int64): Int64 is
+        return x * 2;
+    end;
+
+    function consume(x: Int64): Unit is
+        printLn(x);
+        return nil;
+    end;
+
+    function main(): ExitCode is
+        let f: Fn[Int64, Int64] := double;
+        consume(f(10));
+        return ExitSuccess();
+    end;
+end module body.
