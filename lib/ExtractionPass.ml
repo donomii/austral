@@ -76,6 +76,15 @@ module Errors = struct
       Code (ident_string method_name)
     ]
 
+  let instance_missing_method ~typeclass ~method_name =
+    austral_raise DeclarationError [
+      Text "The instance for typeclass ";
+      Code (ident_string typeclass);
+      Text " is missing the required method ";
+      Code (ident_string method_name);
+      Text "."
+    ]
+
   let typeclass_param_not_region name =
     austral_raise DeclarationError [
       Text "The parameter for the typeclass ";
@@ -546,6 +555,27 @@ and extract_definition (env: env) (mod_id: mod_id) (mn: module_name) (local_type
             body)
          in
          let methods: (instance_method_input * astmt) list = List.map method_map methods in
+         let required_methods: decl list = get_methods_from_typeclass_id env typeclass_id in
+         let has_required_method (required_id: decl_id): bool =
+           List.exists
+             (fun (input, _) -> equal_decl_id input.method_id required_id)
+             methods
+         in
+         let _ =
+           List.iter
+             (fun method_decl ->
+               match method_decl with
+               | TypeClassMethod { id; name; _ } ->
+                  if has_required_method id then
+                    ()
+                  else
+                    Errors.instance_missing_method
+                      ~typeclass:typeclass_name
+                      ~method_name:name
+               | _ ->
+                  internal_err "Expected typeclass method.")
+             required_methods
+         in
          (* Add the methods to the env *)
          let (env, linked_methods) = add_instance_methods env methods in
          (* Construct the decl *)

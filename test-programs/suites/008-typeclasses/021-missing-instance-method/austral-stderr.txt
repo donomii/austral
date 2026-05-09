@@ -1,0 +1,26 @@
+{
+  "module": "Test",
+  "kind": "Declaration Error",
+  "text": [
+    { "type": "text", "content": "The instance for typeclass " },
+    { "type": "code", "content": "SomeTypeclass" },
+    { "type": "text", "content": " is missing the required method " },
+    { "type": "code", "content": "foo" },
+    { "type": "text", "content": "." }
+  ],
+  "span": {
+    "filename": "test-programs/suites/008-typeclasses/021-missing-instance-method/Test.aum",
+    "startp": { "line": 7, "column": 8 },
+    "end": { "line": 10, "column": 8 }
+  },
+  "context": [
+    [ 5, "" ],
+    [ 6, "    record SomeRecord: Free is" ],
+    [ 7, "    end;" ],
+    [ 8, "" ],
+    [ 9, "    instance SomeTypeclass(SomeRecord) is" ],
+    [ 10, "    end;" ],
+    [ 11, "" ],
+    [ 12, "    function main(): ExitCode is" ]
+  ]
+}

@@ -872,6 +872,11 @@ module body Austral.Pervasive is
             return @embed(Unit, "au_printf(\"nil\")");
             return value;
         end;
+
+        generic [R: Region]
+        method printSpan(array: Span[Unit, R]): Unit is
+            return nil;
+        end;
     end;
 
     instance Printable(Bool) is

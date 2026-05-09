@@ -15,7 +15,7 @@ Sources reviewed:
 ## Immediate Correctness
 
 - [ ] Fix typeclass checking soundness.
-  - [ ] Reject instances that omit required typeclass methods.
+  - [x] Reject instances that omit required typeclass methods.
   - [ ] Reject instance methods whose signatures do not match the typeclass.
   - [ ] Add compile-fail tests for both cases.
   - Related upstream issues: #600, #582.

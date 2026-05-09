@@ -279,6 +279,17 @@ let get_method_from_typeclass_id_and_name (env: env) (typeclass_id: decl_id) (na
   in
   List.find_opt pred decls
 
+let get_methods_from_typeclass_id (env: env) (typeclass_id: decl_id): decl list =
+  let (Env { decls; _ }) = env in
+  let pred (decl: decl): bool =
+    match decl with
+    | TypeClassMethod { typeclass_id=target_typeclass_id; _ } ->
+       equal_decl_id target_typeclass_id typeclass_id
+    | _ ->
+       false
+  in
+  List.filter pred decls
+
 let module_instances (env: env) (id: mod_id): decl list =
   let (Env { decls; _ }) = env
   and pred = function
