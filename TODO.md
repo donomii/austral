@@ -97,8 +97,9 @@ Sources reviewed:
 ## Installation And Releases
 
 - [ ] Fix opam/dependency installation.
-  - [ ] Resolve missing `ppxlib = 0.25.0` report.
-  - [ ] Fill missing opam metadata: maintainer, authors, license.
+  - [x] Resolve missing `ppxlib = 0.25.0` report.
+  - [x] Fill missing opam metadata: maintainer, authors, license.
+  - [ ] Resolve dependency constraints for modern OCaml switches.
   - [ ] Test install on a fresh non-Nix Linux environment.
   - Related upstream issue: #616.
 

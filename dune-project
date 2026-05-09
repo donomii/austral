@@ -8,6 +8,9 @@
  (name austral)
  (synopsis "The bootstrapping compiler for Austral")
  (description "The bootstrapping compiler for Austral.")
+ (authors "Fernando Borretti")
+ (maintainers "Fernando Borretti <fernando@borretti.me>")
+ (license "Apache-2.0 WITH LLVM-exception")
  (homepage https://austral-lang.org/)
  (bug_reports https://github.com/austral/austral/issues)
  (depends

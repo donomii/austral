@@ -3,6 +3,9 @@ opam-version: "2.0"
 version: "0.0.1"
 synopsis: "The bootstrapping compiler for Austral"
 description: "The bootstrapping compiler for Austral."
+maintainer: ["Fernando Borretti <fernando@borretti.me>"]
+authors: ["Fernando Borretti"]
+license: "Apache-2.0 WITH LLVM-exception"
 homepage: "https://austral-lang.org/"
 bug-reports: "https://github.com/austral/austral/issues"
 depends: [
