@@ -1,0 +1,23 @@
+{
+  "module": "Test",
+  "kind": "Linearity Error",
+  "text": [
+    { "type": "text", "content": "The variable " },
+    { "type": "code", "content": "owned" },
+    { "type": "text", "content": " has already been consumed." }
+  ],
+  "span": {
+    "filename": "test-programs/suites/018-system-thread/001-owned-moved-into-thread/Test.aum",
+    "startp": { "line": 32, "column": 8 },
+    "end": { "line": 32, "column": 28 }
+  },
+  "context": [
+    [ 30, "" ],
+    [
+      31, "        -- This is intentionally illegal: spawn consumed `owned`."
+    ],
+    [ 32, "        destroyOwned(owned);" ],
+    [ 33, "" ],
+    [ 34, "        let returned: Owned[Int64] := join(thread);" ]
+  ]
+}

@@ -1,0 +1,407 @@
+pragma Unsafe_Module;
+
+import System.Thread (
+    Owned,
+    Thread,
+    destroyOwned,
+    makeOwned,
+    readOwnedFree,
+    spawn,
+    storeOwnedFree,
+    join
+);
+import System.Thread.Pool (
+    ClosedPool,
+    JobBatch,
+    OpenPool,
+    ResultBatch,
+    closePool,
+    destroyEmptyResults,
+    joinPool,
+    makeJobs,
+    pushJob,
+    removeResult,
+    resultCount,
+    runPool,
+    startPool,
+    submitJob
+);
+
+module body Demo.Threads is
+
+    pragma Foreign_Import(External_Name => "usleep");
+    function usleep(usec: Nat32): Int32 is
+    end;
+
+    record TickJob: Free is
+        label: Int64;
+        ticks: Int64;
+        delayUsec: Nat32;
+    end;
+
+    record Pair: Free is
+        left: Int64;
+        right: Int64;
+    end;
+
+    record SortChunk: Free is
+        label: Int64;
+        v0: Int64;
+        v1: Int64;
+        v2: Int64;
+        v3: Int64;
+        v4: Int64;
+        v5: Int64;
+    end;
+
+    record SquareJob: Free is
+        value: Int64;
+        delayUsec: Nat32;
+    end;
+
+    record SquareResult: Free is
+        input: Int64;
+        output: Int64;
+    end;
+
+    generic [T: Free]
+    function mustOwn(value: T): Owned[T] is
+        let result: Either[Owned[T], T] := makeOwned(value);
+        case result of
+            when Left(left: Owned[T]) do
+                return left;
+            when Right(right: T) do
+                abort("mustOwn: allocation failed");
+        end case;
+    end;
+
+    function printTick(label: Int64, tick: Int64): Unit is
+        @embed(Unit, "au_printf(\"  ticker %lld tick %lld\n\", (long long)$1, (long long)$2)", label, tick);
+        return nil;
+    end;
+
+    function printSorter(label: Int64, phase: Int64): Unit is
+        if phase = 0 then
+            @embed(Unit, "au_printf(\"  sorter %lld started\n\", (long long)$1)", label);
+        else
+            @embed(Unit, "au_printf(\"  sorter %lld finished\n\", (long long)$1)", label);
+        end if;
+        return nil;
+    end;
+
+    function printValue(value: Int64): Unit is
+        @embed(Unit, "au_printf(\" %lld\", (long long)$1)", value);
+        return nil;
+    end;
+
+    function tickWorker(jobOwner: Owned[TickJob]): Owned[TickJob] is
+        var owner: Owned[TickJob] := jobOwner;
+        let job: TickJob := readOwnedFree(&owner);
+        var i: Int64 := 1;
+        while i <= job.ticks do
+            printTick(job.label, i);
+            usleep(job.delayUsec);
+            i := i + 1;
+        end while;
+        return owner;
+    end;
+
+    function ordered(a: Int64, b: Int64): Pair is
+        if a <= b then
+            return Pair(left => a, right => b);
+        else
+            return Pair(left => b, right => a);
+        end if;
+    end;
+
+    function sortChunk(chunk: SortChunk): SortChunk is
+        var a: Int64 := chunk.v0;
+        var b: Int64 := chunk.v1;
+        var c: Int64 := chunk.v2;
+        var d: Int64 := chunk.v3;
+        var e: Int64 := chunk.v4;
+        var f: Int64 := chunk.v5;
+
+        let p01a: Pair := ordered(a, b);
+        a := p01a.left;
+        b := p01a.right;
+        let p12a: Pair := ordered(b, c);
+        b := p12a.left;
+        c := p12a.right;
+        let p23a: Pair := ordered(c, d);
+        c := p23a.left;
+        d := p23a.right;
+        let p34a: Pair := ordered(d, e);
+        d := p34a.left;
+        e := p34a.right;
+        let p45a: Pair := ordered(e, f);
+        e := p45a.left;
+        f := p45a.right;
+
+        let p01b: Pair := ordered(a, b);
+        a := p01b.left;
+        b := p01b.right;
+        let p12b: Pair := ordered(b, c);
+        b := p12b.left;
+        c := p12b.right;
+        let p23b: Pair := ordered(c, d);
+        c := p23b.left;
+        d := p23b.right;
+        let p34b: Pair := ordered(d, e);
+        d := p34b.left;
+        e := p34b.right;
+
+        let p01c: Pair := ordered(a, b);
+        a := p01c.left;
+        b := p01c.right;
+        let p12c: Pair := ordered(b, c);
+        b := p12c.left;
+        c := p12c.right;
+        let p23c: Pair := ordered(c, d);
+        c := p23c.left;
+        d := p23c.right;
+
+        let p01d: Pair := ordered(a, b);
+        a := p01d.left;
+        b := p01d.right;
+        let p12d: Pair := ordered(b, c);
+        b := p12d.left;
+        c := p12d.right;
+
+        let p01e: Pair := ordered(a, b);
+        a := p01e.left;
+        b := p01e.right;
+
+        return SortChunk(
+            label => chunk.label,
+            v0 => a,
+            v1 => b,
+            v2 => c,
+            v3 => d,
+            v4 => e,
+            v5 => f
+        );
+    end;
+
+    function sortWorker(jobOwner: Owned[SortChunk]): Owned[SortChunk] is
+        var owner: Owned[SortChunk] := jobOwner;
+        let job: SortChunk := readOwnedFree(&owner);
+        let started: Int64 := 0;
+        let finished: Int64 := 1;
+        let pause: Nat32 := 100000;
+        printSorter(job.label, started);
+        usleep(pause);
+        let sorted: SortChunk := sortChunk(job);
+        storeOwnedFree(&!owner, sorted);
+        printSorter(job.label, finished);
+        return owner;
+    end;
+
+    function chunkAt(chunk: SortChunk, index: Index): Int64 is
+        if index = 0 then
+            return chunk.v0;
+        else
+            if index = 1 then
+                return chunk.v1;
+            else
+                if index = 2 then
+                    return chunk.v2;
+                else
+                    if index = 3 then
+                        return chunk.v3;
+                    else
+                        if index = 4 then
+                            return chunk.v4;
+                        else
+                            return chunk.v5;
+                        end if;
+                    end if;
+                end if;
+            end if;
+        end if;
+    end;
+
+    function printChunk(chunk: SortChunk): Unit is
+        @embed(Unit, "au_printf(\"  [\")");
+        for i from 0 to 5 do
+            printValue(chunkAt(chunk, i));
+        end for;
+        @embed(Unit, "au_printf(\" ]\n\")");
+        return nil;
+    end;
+
+    function printMerged(left: SortChunk, right: SortChunk): Unit is
+        var i: Index := 0;
+        var j: Index := 0;
+        @embed(Unit, "au_printf(\"  [\")");
+        while (i < 6) and (j < 6) do
+            let a: Int64 := chunkAt(left, i);
+            let b: Int64 := chunkAt(right, j);
+            if a <= b then
+                printValue(a);
+                i := i + 1;
+            else
+                printValue(b);
+                j := j + 1;
+            end if;
+        end while;
+        while i < 6 do
+            printValue(chunkAt(left, i));
+            i := i + 1;
+        end while;
+        while j < 6 do
+            printValue(chunkAt(right, j));
+            j := j + 1;
+        end while;
+        @embed(Unit, "au_printf(\" ]\n\")");
+        return nil;
+    end;
+
+    function squareWorker(jobOwner: Owned[SquareJob]): Owned[SquareResult] is
+        let job: SquareJob := destroyOwned(jobOwner);
+        usleep(job.delayUsec);
+        let result: SquareResult := SquareResult(
+            input => job.value,
+            output => job.value * job.value
+        );
+        return mustOwn(result);
+    end;
+
+    function printSquareResult(result: SquareResult): Unit is
+        @embed(Unit, "au_printf(\"  %lld -> %lld\n\", (long long)$1, (long long)$2)", result.input, result.output);
+        return nil;
+    end;
+
+    function printPoolSummary(count: Index, sum: Int64): Unit is
+        @embed(Unit, "au_printf(\"  processed %zu jobs, sum of squares = %lld\n\", (size_t)$1, (long long)$2)", count, sum);
+        return nil;
+    end;
+
+    function demoTicks(): Unit is
+        printLn("tick demo: three Austral workers, three delays");
+        let ticks: Int64 := 5;
+        let job1: TickJob := TickJob(label => 1, ticks => ticks, delayUsec => 120000);
+        let job2: TickJob := TickJob(label => 2, ticks => ticks, delayUsec => 200000);
+        let job3: TickJob := TickJob(label => 3, ticks => ticks, delayUsec => 320000);
+        let owned1: Owned[TickJob] := mustOwn(job1);
+        let owned2: Owned[TickJob] := mustOwn(job2);
+        let owned3: Owned[TickJob] := mustOwn(job3);
+        let t1: Thread[TickJob] := spawn(tickWorker, owned1);
+        let t2: Thread[TickJob] := spawn(tickWorker, owned2);
+        let t3: Thread[TickJob] := spawn(tickWorker, owned3);
+        let done1: Owned[TickJob] := join(t1);
+        let done2: Owned[TickJob] := join(t2);
+        let done3: Owned[TickJob] := join(t3);
+        destroyOwned(done1);
+        destroyOwned(done2);
+        destroyOwned(done3);
+        return nil;
+    end;
+
+    function demoParallelSort(): Unit is
+        printLn("");
+        printLn("parallel sort demo: two Austral workers sort owned chunks");
+        let left: SortChunk := SortChunk(
+            label => 1,
+            v0 => 42,
+            v1 => 7,
+            v2 => 99,
+            v3 => 13,
+            v4 => 64,
+            v5 => 2
+        );
+        let right: SortChunk := SortChunk(
+            label => 2,
+            v0 => 75,
+            v1 => 18,
+            v2 => 51,
+            v3 => 30,
+            v4 => 11,
+            v5 => 88
+        );
+        printLn("before:");
+        printChunk(left);
+        printChunk(right);
+        let ownedLeft: Owned[SortChunk] := mustOwn(left);
+        let ownedRight: Owned[SortChunk] := mustOwn(right);
+        let t1: Thread[SortChunk] := spawn(sortWorker, ownedLeft);
+        let t2: Thread[SortChunk] := spawn(sortWorker, ownedRight);
+        let finishedLeft: Owned[SortChunk] := join(t1);
+        let finishedRight: Owned[SortChunk] := join(t2);
+        let sortedLeft: SortChunk := destroyOwned(finishedLeft);
+        let sortedRight: SortChunk := destroyOwned(finishedRight);
+        printLn("after parallel chunk sorts:");
+        printChunk(sortedLeft);
+        printChunk(sortedRight);
+        printLn("after main-thread merge:");
+        printMerged(sortedLeft, sortedRight);
+        return nil;
+    end;
+
+    function demoWorkerPool(): Unit is
+        printLn("");
+        printLn("worker pool demo: four Austral workers pull twenty queued jobs");
+        let workers: Index := 4;
+        var pool: OpenPool[SquareJob, SquareResult] := startPool(squareWorker, workers, workers);
+        for i from 1 to 20 do
+            let value: Int64 := @embed(Int64, "((int64_t)$1)", i);
+            let delay: Nat32 := @embed(Nat32, "((uint32_t)((21 - (size_t)$1) * 10000))", i);
+            let job: SquareJob := SquareJob(value => value, delayUsec => delay);
+            let ownedJob: Owned[SquareJob] := mustOwn(job);
+            submitJob(&!pool, ownedJob);
+        end for;
+
+        let closed: ClosedPool[SquareJob, SquareResult] := closePool(pool);
+        var results: ResultBatch[SquareResult] := joinPool(closed);
+        while resultCount(&results) > 0 do
+            let ownedResult: Owned[SquareResult] := removeResult(&!results);
+            let result: SquareResult := destroyOwned(ownedResult);
+            printSquareResult(result);
+        end while;
+        destroyEmptyResults(results);
+        return nil;
+    end;
+
+    function demoWorkerPoolStress(): Unit is
+        printLn("");
+        printLn("worker pool stress: eight workers square 1000 owned jobs");
+        let capacity: Index := 1000;
+        var jobs: JobBatch[SquareJob] := makeJobs(capacity);
+        for i from 1 to 1000 do
+            let value: Int64 := @embed(Int64, "((int64_t)$1)", i);
+            let noDelay: Nat32 := 0;
+            let job: SquareJob := SquareJob(value => value, delayUsec => noDelay);
+            let ownedJob: Owned[SquareJob] := mustOwn(job);
+            pushJob(&!jobs, ownedJob);
+        end for;
+
+        let workers: Index := 8;
+        var results: ResultBatch[SquareResult] := runPool(squareWorker, jobs, workers);
+        var count: Index := 0;
+        var sum: Int64 := 0;
+        while resultCount(&results) > 0 do
+            let ownedResult: Owned[SquareResult] := removeResult(&!results);
+            let result: SquareResult := destroyOwned(ownedResult);
+            sum := sum + result.output;
+            count := count + 1;
+        end while;
+        destroyEmptyResults(results);
+        printPoolSummary(count, sum);
+        let expected: Int64 := 333833500;
+        if (count = capacity) and (sum = expected) then
+            printLn("  PASS");
+        else
+            abort("worker pool stress: wrong aggregate");
+        end if;
+        return nil;
+    end;
+
+    function main(): ExitCode is
+        demoTicks();
+        demoParallelSort();
+        demoWorkerPool();
+        demoWorkerPoolStress();
+        return ExitSuccess();
+    end;
+
+end module body.

@@ -1,0 +1,72 @@
+import System.Thread (Owned);
+
+module System.Thread.Pool is
+    -- A fixed-capacity linear batch of owned jobs, useful for runPool.
+    type JobBatch[T: Type]: Linear;
+
+    -- A fixed-capacity linear batch of owned results.
+    type ResultBatch[T: Type]: Linear;
+
+    -- A running worker pool. Jobs can be submitted while the pool is open.
+    type OpenPool[T: Type, U: Type]: Linear;
+
+    -- A closed worker pool. No more jobs can be submitted; joinPool must be
+    -- called to join the worker threads and recover the results.
+    type ClosedPool[T: Type, U: Type]: Linear;
+
+    generic [T: Type]
+    function makeJobs(capacity: Index): JobBatch[T];
+
+    generic [T: Type]
+    function emptyJobs(): JobBatch[T];
+
+    generic [T: Type, R: Region]
+    function pushJob(batch: &![JobBatch[T], R], job: Owned[T]): Unit;
+
+    generic [T: Type, R: Region]
+    function jobCount(batch: &[JobBatch[T], R]): Index;
+
+    generic [T: Type]
+    function destroyEmptyJobs(batch: JobBatch[T]): Unit;
+
+    generic [T: Type, R: Region]
+    function resultCount(batch: &[ResultBatch[T], R]): Index;
+
+    generic [T: Type, R: Region]
+    function removeResult(batch: &![ResultBatch[T], R]): Owned[T];
+
+    generic [T: Type]
+    function destroyEmptyResults(batch: ResultBatch[T]): Unit;
+
+    -- Start workerCount threads that block on a shared job queue.
+    --
+    -- queueCapacity is the initial queue capacity; the runtime queue grows if
+    -- the parent submits faster than workers can consume.
+    generic [T: Free, U: Free]
+    function startPool(
+        worker: Fn[Owned[T], Owned[U]],
+        workerCount: Index,
+        queueCapacity: Index
+    ): OpenPool[T, U];
+
+    -- Submit one owned job to the shared work queue.
+    generic [T: Type, U: Type, R: Region]
+    function submitJob(pool: &![OpenPool[T, U], R], job: Owned[T]): Unit;
+
+    -- Close the job queue. Workers finish after draining all submitted jobs.
+    generic [T: Type, U: Type]
+    function closePool(pool: OpenPool[T, U]): ClosedPool[T, U];
+
+    -- Join all workers and return every owned result.
+    generic [T: Free, U: Free]
+    function joinPool(pool: ClosedPool[T, U]): ResultBatch[U];
+
+    -- Convenience wrapper: start a real queued worker pool, submit every job in
+    -- the batch, close it, join workers, and return the owned results.
+    generic [T: Free, U: Free]
+    function runPool(
+        worker: Fn[Owned[T], Owned[U]],
+        batch: JobBatch[T],
+        workerCount: Index
+    ): ResultBatch[U];
+end module.

@@ -1,0 +1,428 @@
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address,
+    Pointer,
+    allocateBuffer,
+    deallocate,
+    load,
+    nullCheck,
+    positiveOffset,
+    store
+);
+import System.Thread (
+    Owned,
+    Thread,
+    destroyOwned,
+    makeOwned,
+    spawn,
+    unsafeAddressToOwned,
+    unsafeOwnedToAddress,
+    join
+);
+
+module body System.Thread.Pool is
+    record JobBatch[T: Type]: Linear is
+        capacity: Index;
+        size: Index;
+        jobs: Pointer[Owned[T]];
+    end;
+
+    record ResultBatch[T: Type]: Linear is
+        capacity: Index;
+        size: Index;
+        results: Pointer[Owned[T]];
+    end;
+
+    record ThreadBatch[T: Type]: Linear is
+        capacity: Index;
+        size: Index;
+        threads: Pointer[Thread[T]];
+    end;
+
+    record PoolWorkerState[T: Free, U: Free]: Free is
+        worker: Fn[Owned[T], Owned[U]];
+        jobQueue: Address[Nat8];
+        resultQueue: Address[Nat8];
+    end;
+
+    record PoolWorkerDone: Free is
+        processed: Index;
+    end;
+
+    record OpenPool[T: Type, U: Type]: Linear is
+        jobQueue: Address[Nat8];
+        resultQueue: Address[Nat8];
+        threads: ThreadBatch[PoolWorkerDone];
+        submitted: Index;
+    end;
+
+    record ClosedPool[T: Type, U: Type]: Linear is
+        jobQueue: Address[Nat8];
+        resultQueue: Address[Nat8];
+        threads: ThreadBatch[PoolWorkerDone];
+        submitted: Index;
+    end;
+
+    pragma Foreign_Import(External_Name => "au_queue_create");
+    function au_queue_create(capacity: Index): Address[Nat8] is
+    end;
+
+    pragma Foreign_Import(External_Name => "au_queue_push");
+    function au_queue_push(queue: Address[Nat8], item: Address[Nat8]): Int32 is
+    end;
+
+    pragma Foreign_Import(External_Name => "au_queue_pop");
+    function au_queue_pop(queue: Address[Nat8]): Address[Nat8] is
+    end;
+
+    pragma Foreign_Import(External_Name => "au_queue_close");
+    function au_queue_close(queue: Address[Nat8]): Int32 is
+    end;
+
+    pragma Foreign_Import(External_Name => "au_queue_count");
+    function au_queue_count(queue: Address[Nat8]): Index is
+    end;
+
+    pragma Foreign_Import(External_Name => "au_queue_destroy");
+    function au_queue_destroy(queue: Address[Nat8]): Int32 is
+    end;
+
+    function normalizeCapacity(capacity: Index): Index is
+        if capacity = 0 then
+            return 1;
+        else
+            return capacity;
+        end if;
+    end;
+
+    generic [T: Type]
+    function allocateOwnedArray(capacity: Index): Pointer[Owned[T]] is
+        let actual: Index := normalizeCapacity(capacity);
+        let address: Address[Owned[T]] := allocateBuffer(actual);
+        let checked: Option[Pointer[Owned[T]]] := nullCheck(address);
+        case checked of
+            when Some(value as pointer: Pointer[Owned[T]]) do
+                return pointer;
+            when None do
+                abort("allocateOwnedArray: allocation failed");
+        end case;
+    end;
+
+    generic [T: Type]
+    function makeJobs(capacity: Index): JobBatch[T] is
+        let actual: Index := normalizeCapacity(capacity);
+        let pointer: Pointer[Owned[T]] := allocateOwnedArray(actual);
+        return JobBatch(capacity => actual, size => 0, jobs => pointer);
+    end;
+
+    generic [T: Type]
+    function emptyJobs(): JobBatch[T] is
+        let capacity: Index := 16;
+        return makeJobs(capacity);
+    end;
+
+    generic [T: Type, R: Region]
+    function pushJob(batch: &![JobBatch[T], R], job: Owned[T]): Unit is
+        if batch->size >= batch->capacity then
+            abort("pushJob: batch is full");
+        end if;
+        let slot: Pointer[Owned[T]] := positiveOffset(batch->jobs, batch->size);
+        store(slot, job);
+        batch->size := batch->size + 1;
+        return nil;
+    end;
+
+    generic [T: Type, R: Region]
+    function removeJob(batch: &![JobBatch[T], R]): Owned[T] is
+        if batch->size = 0 then
+            abort("removeJob: batch is empty");
+        end if;
+        let newSize: Index := batch->size - 1;
+        let slot: Pointer[Owned[T]] := positiveOffset(batch->jobs, newSize);
+        let job: Owned[T] := load(slot);
+        batch->size := newSize;
+        return job;
+    end;
+
+    generic [T: Type, R: Region]
+    function jobCount(batch: &[JobBatch[T], R]): Index is
+        return batch->size;
+    end;
+
+    generic [T: Type]
+    function destroyEmptyJobs(batch: JobBatch[T]): Unit is
+        let { capacity: Index, size: Index, jobs: Pointer[Owned[T]] } := batch;
+        if size /= 0 then
+            abort("destroyEmptyJobs: batch is not empty");
+        end if;
+        deallocate(jobs);
+        return nil;
+    end;
+
+    generic [T: Type]
+    function makeResults(capacity: Index): ResultBatch[T] is
+        let actual: Index := normalizeCapacity(capacity);
+        let pointer: Pointer[Owned[T]] := allocateOwnedArray(actual);
+        return ResultBatch(capacity => actual, size => 0, results => pointer);
+    end;
+
+    generic [T: Type, R: Region]
+    function pushResult(batch: &![ResultBatch[T], R], result: Owned[T]): Unit is
+        if batch->size >= batch->capacity then
+            abort("pushResult: batch is full");
+        end if;
+        let slot: Pointer[Owned[T]] := positiveOffset(batch->results, batch->size);
+        store(slot, result);
+        batch->size := batch->size + 1;
+        return nil;
+    end;
+
+    generic [T: Type, R: Region]
+    function resultCount(batch: &[ResultBatch[T], R]): Index is
+        return batch->size;
+    end;
+
+    generic [T: Type, R: Region]
+    function removeResult(batch: &![ResultBatch[T], R]): Owned[T] is
+        if batch->size = 0 then
+            abort("removeResult: batch is empty");
+        end if;
+        let newSize: Index := batch->size - 1;
+        let slot: Pointer[Owned[T]] := positiveOffset(batch->results, newSize);
+        let result: Owned[T] := load(slot);
+        batch->size := newSize;
+        return result;
+    end;
+
+    generic [T: Type]
+    function destroyEmptyResults(batch: ResultBatch[T]): Unit is
+        let { capacity: Index, size: Index, results: Pointer[Owned[T]] } := batch;
+        if size /= 0 then
+            abort("destroyEmptyResults: batch is not empty");
+        end if;
+        deallocate(results);
+        return nil;
+    end;
+
+    generic [T: Type]
+    function allocateThreadArray(capacity: Index): Pointer[Thread[T]] is
+        let actual: Index := normalizeCapacity(capacity);
+        let address: Address[Thread[T]] := allocateBuffer(actual);
+        let checked: Option[Pointer[Thread[T]]] := nullCheck(address);
+        case checked of
+            when Some(value as pointer: Pointer[Thread[T]]) do
+                return pointer;
+            when None do
+                abort("allocateThreadArray: allocation failed");
+        end case;
+    end;
+
+    generic [T: Type]
+    function makeThreadBatch(capacity: Index): ThreadBatch[T] is
+        let actual: Index := normalizeCapacity(capacity);
+        let pointer: Pointer[Thread[T]] := allocateThreadArray(actual);
+        return ThreadBatch(capacity => actual, size => 0, threads => pointer);
+    end;
+
+    generic [T: Type, R: Region]
+    function pushThread(batch: &![ThreadBatch[T], R], thread: Thread[T]): Unit is
+        if batch->size >= batch->capacity then
+            abort("pushThread: batch is full");
+        end if;
+        let slot: Pointer[Thread[T]] := positiveOffset(batch->threads, batch->size);
+        store(slot, thread);
+        batch->size := batch->size + 1;
+        return nil;
+    end;
+
+    generic [T: Type, R: Region]
+    function removeThread(batch: &![ThreadBatch[T], R]): Thread[T] is
+        if batch->size = 0 then
+            abort("removeThread: batch is empty");
+        end if;
+        let newSize: Index := batch->size - 1;
+        let slot: Pointer[Thread[T]] := positiveOffset(batch->threads, newSize);
+        let thread: Thread[T] := load(slot);
+        batch->size := newSize;
+        return thread;
+    end;
+
+    generic [T: Type]
+    function destroyEmptyThreads(batch: ThreadBatch[T]): Unit is
+        let { capacity: Index, size: Index, threads: Pointer[Thread[T]] } := batch;
+        if size /= 0 then
+            abort("destroyEmptyThreads: batch is not empty");
+        end if;
+        deallocate(threads);
+        return nil;
+    end;
+
+    generic [T: Free]
+    function mustOwnFree(value: T): Owned[T] is
+        let result: Either[Owned[T], T] := makeOwned(value);
+        case result of
+            when Left(left: Owned[T]) do
+                return left;
+            when Right(right: T) do
+                abort("mustOwnFree: allocation failed");
+        end case;
+    end;
+
+    generic [T: Type]
+    function popOwned(queue: Address[Nat8]): Owned[T] is
+        let raw: Address[Nat8] := au_queue_pop(queue);
+        let checked: Option[Pointer[Nat8]] := nullCheck(raw);
+        case checked of
+            when Some(value as pointer: Pointer[Nat8]) do
+                return unsafeAddressToOwned(raw);
+            when None do
+                abort("popOwned: queue returned no item");
+        end case;
+    end;
+
+    generic [T: Free, U: Free]
+    function poolWorker(stateOwner: Owned[PoolWorkerState[T, U]]): Owned[PoolWorkerDone] is
+        let state: PoolWorkerState[T, U] := destroyOwned(stateOwner);
+        let {
+            worker: Fn[Owned[T], Owned[U]],
+            jobQueue: Address[Nat8],
+            resultQueue: Address[Nat8]
+        } := state;
+        var processed: Index := 0;
+        var running: Bool := true;
+        while running do
+            let rawJob: Address[Nat8] := au_queue_pop(jobQueue);
+            let checkedJob: Option[Pointer[Nat8]] := nullCheck(rawJob);
+            case checkedJob of
+                when Some(value as pointer: Pointer[Nat8]) do
+                    let job: Owned[T] := unsafeAddressToOwned(rawJob);
+                    let result: Owned[U] := worker(job);
+                    let rawResult: Address[Nat8] := unsafeOwnedToAddress(result);
+                    au_queue_push(resultQueue, rawResult);
+                    processed := processed + 1;
+                when None do
+                    running := false;
+            end case;
+        end while;
+
+        let done: PoolWorkerDone := PoolWorkerDone(processed => processed);
+        return mustOwnFree(done);
+    end;
+
+    generic [T: Free, U: Free]
+    function startPool(
+        worker: Fn[Owned[T], Owned[U]],
+        workerCount: Index,
+        queueCapacity: Index
+    ): OpenPool[T, U] is
+        if workerCount = 0 then
+            abort("startPool: workerCount must be greater than zero");
+        end if;
+
+        let capacity: Index := normalizeCapacity(queueCapacity);
+        let jobQueue: Address[Nat8] := au_queue_create(capacity);
+        let resultQueue: Address[Nat8] := au_queue_create(capacity);
+        var threads: ThreadBatch[PoolWorkerDone] := makeThreadBatch(workerCount);
+
+        var started: Index := 0;
+        while started < workerCount do
+            let state: PoolWorkerState[T, U] := PoolWorkerState(
+                worker => worker,
+                jobQueue => jobQueue,
+                resultQueue => resultQueue
+            );
+            let ownedState: Owned[PoolWorkerState[T, U]] := mustOwnFree(state);
+            let workerFn: Fn[Owned[PoolWorkerState[T, U]], Owned[PoolWorkerDone]] := poolWorker;
+            let thread: Thread[PoolWorkerDone] := spawn(workerFn, ownedState);
+            pushThread(&!threads, thread);
+            started := started + 1;
+        end while;
+
+        return OpenPool(
+            jobQueue => jobQueue,
+            resultQueue => resultQueue,
+            threads => threads,
+            submitted => 0
+        );
+    end;
+
+    generic [T: Type, U: Type, R: Region]
+    function submitJob(pool: &![OpenPool[T, U], R], job: Owned[T]): Unit is
+        let rawJob: Address[Nat8] := unsafeOwnedToAddress(job);
+        au_queue_push(pool->jobQueue, rawJob);
+        pool->submitted := pool->submitted + 1;
+        return nil;
+    end;
+
+    generic [T: Type, U: Type]
+    function closePool(pool: OpenPool[T, U]): ClosedPool[T, U] is
+        let {
+            jobQueue: Address[Nat8],
+            resultQueue: Address[Nat8],
+            threads: ThreadBatch[PoolWorkerDone],
+            submitted: Index
+        } := pool;
+        au_queue_close(jobQueue);
+        return ClosedPool(
+            jobQueue => jobQueue,
+            resultQueue => resultQueue,
+            threads => threads,
+            submitted => submitted
+        );
+    end;
+
+    generic [T: Free, U: Free]
+    function joinPool(pool: ClosedPool[T, U]): ResultBatch[U] is
+        let {
+            jobQueue: Address[Nat8],
+            resultQueue: Address[Nat8],
+            threads: ThreadBatch[PoolWorkerDone],
+            submitted: Index
+        } := pool;
+
+        var workerThreads: ThreadBatch[PoolWorkerDone] := threads;
+        var processed: Index := 0;
+        while workerThreads.size > 0 do
+            let thread: Thread[PoolWorkerDone] := removeThread(&!workerThreads);
+            let ownedDone: Owned[PoolWorkerDone] := join(thread);
+            let done: PoolWorkerDone := destroyOwned(ownedDone);
+            processed := processed + done.processed;
+        end while;
+        destroyEmptyThreads(workerThreads);
+
+        let available: Index := au_queue_count(resultQueue);
+        if (processed /= submitted) or (available /= submitted) then
+            abort("joinPool: worker result count mismatch");
+        end if;
+
+        var results: ResultBatch[U] := makeResults(submitted);
+        var drained: Index := 0;
+        while drained < submitted do
+            let result: Owned[U] := popOwned(resultQueue);
+            pushResult(&!results, result);
+            drained := drained + 1;
+        end while;
+
+        au_queue_destroy(jobQueue);
+        au_queue_destroy(resultQueue);
+        return results;
+    end;
+
+    generic [T: Free, U: Free]
+    function runPool(
+        worker: Fn[Owned[T], Owned[U]],
+        batch: JobBatch[T],
+        workerCount: Index
+    ): ResultBatch[U] is
+        var pool: OpenPool[T, U] := startPool(worker, workerCount, workerCount);
+        var remainingJobs: JobBatch[T] := batch;
+        while jobCount(&remainingJobs) > 0 do
+            let job: Owned[T] := removeJob(&!remainingJobs);
+            submitJob(&!pool, job);
+        end while;
+        destroyEmptyJobs(remainingJobs);
+        let closed: ClosedPool[T, U] := closePool(pool);
+        return joinPool(closed);
+    end;
+end module body.

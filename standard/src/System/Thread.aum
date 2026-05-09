@@ -1,0 +1,164 @@
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address,
+    Pointer,
+    allocate,
+    deallocate,
+    load,
+    nullCheck,
+    store
+);
+
+module body System.Thread is
+    record Owned[T: Type]: Linear is
+        pointer: Pointer[T];
+    end;
+
+    record Thread[T: Type]: Linear is
+        handle: Address[Nat8];
+    end;
+
+    record SpawnJob[T: Type, U: Type]: Linear is
+        fn: Fn[Owned[T], Owned[U]];
+        data: Owned[T];
+    end;
+
+    pragma Foreign_Import(External_Name => "au_spawn_thread");
+    function au_spawn_thread(fn: Fn[Address[Nat8], Address[Nat8]], data: Address[Nat8]): Address[Nat8] is
+    end;
+
+    pragma Foreign_Import(External_Name => "au_join_thread");
+    function au_join_thread(handle: Address[Nat8]): Address[Nat8] is
+    end;
+
+    generic [T: Type]
+    function makeOwned(payload: T): Either[Owned[T], T] is
+        let address: Address[T] := allocate();
+        let checked: Option[Pointer[T]] := nullCheck(address);
+        case checked of
+            when Some(value as pointer: Pointer[T]) do
+                store(pointer, payload);
+                let owner: Owned[T] := Owned(pointer => pointer);
+                return Left(left => owner);
+            when None do
+                return Right(right => payload);
+        end case;
+    end;
+
+    generic [T: Type]
+    function destroyOwned(owner: Owned[T]): T is
+        let { pointer: Pointer[T] } := owner;
+        let value: T := load(pointer);
+        deallocate(pointer);
+        return value;
+    end;
+
+    generic [T: Type]
+    function unsafeOwnedToAddress(owner: Owned[T]): Address[Nat8] is
+        let { pointer: Pointer[T] } := owner;
+        return @embed(Address[Nat8], "$1", pointer);
+    end;
+
+    generic [T: Type]
+    function unsafeAddressToOwned(address: Address[Nat8]): Owned[T] is
+        let typedAddress: Address[T] := @embed(Address[T], "$1", address);
+        return addressToOwned(typedAddress);
+    end;
+
+    generic [T: Free, R: Region]
+    function readOwnedFree(owner: &[Owned[T], R]): T is
+        let pointer: Pointer[T] := owner->pointer;
+        return load(pointer);
+    end;
+
+    generic [T: Free, R: Region]
+    function storeOwnedFree(owner: &![Owned[T], R], value: T): Unit is
+        let pointer: Pointer[T] := owner->pointer;
+        store(pointer, value);
+        return nil;
+    end;
+
+    generic [T: Type]
+    function leakOwned(owner: Owned[T]): Unit is
+        let { pointer: Pointer[T] } := owner;
+        return nil;
+    end;
+
+    generic [T: Type]
+    function pointerToAddress(pointer: Pointer[T]): Address[T] is
+        return @embed(Address[T], "$1", pointer);
+    end;
+
+    generic [T: Type]
+    function addressToOwned(address: Address[T]): Owned[T] is
+        let checked: Option[Pointer[T]] := nullCheck(address);
+        case checked of
+            when Some(value as pointer: Pointer[T]) do
+                return Owned(pointer => pointer);
+            when None do
+                abort("addressToOwned: null owned pointer");
+        end case;
+    end;
+
+    generic [T: Type, U: Type]
+    function runSpawnJob(jobAddress: Address[SpawnJob[T, U]]): Address[U] is
+        let checked: Option[Pointer[SpawnJob[T, U]]] := nullCheck(jobAddress);
+        case checked of
+            when Some(value as jobPointer: Pointer[SpawnJob[T, U]]) do
+                let job: SpawnJob[T, U] := load(jobPointer);
+                deallocate(jobPointer);
+                let { fn: Fn[Owned[T], Owned[U]], data: Owned[T] } := job;
+                let result: Owned[U] := fn(data);
+                let { pointer: Pointer[U] } := result;
+                return pointerToAddress(pointer);
+            when None do
+                abort("runSpawnJob: null job pointer");
+        end case;
+    end;
+
+    function spawnRaw(fn: Fn[Address[Nat8], Address[Nat8]], data: Address[Nat8]): Thread[Nat8] is
+        let handle: Address[Nat8] := au_spawn_thread(fn, data);
+        return Thread(handle => handle);
+    end;
+
+    generic [T: Type, U: Type]
+    function safeSpawn(fn: Fn[Owned[T], Owned[U]], data: Owned[T]): Either[Thread[U], Owned[T]] is
+        let jobAddress: Address[SpawnJob[T, U]] := allocate();
+        let checkedJob: Option[Pointer[SpawnJob[T, U]]] := nullCheck(jobAddress);
+        case checkedJob of
+            when Some(value as jobPointer: Pointer[SpawnJob[T, U]]) do
+                let job: SpawnJob[T, U] := SpawnJob(fn => fn, data => data);
+                store(jobPointer, job);
+                let trampoline: Fn[Address[SpawnJob[T, U]], Address[U]] := runSpawnJob;
+                let rawFn: Fn[Address[Nat8], Address[Nat8]] := @embed(Fn[Address[Nat8], Address[Nat8]], "$1", trampoline);
+                let rawData: Address[Nat8] := @embed(Address[Nat8], "$1", jobAddress);
+                let rawThread: Thread[Nat8] := spawnRaw(rawFn, rawData);
+                let { handle: Address[Nat8] } := rawThread;
+                let thread: Thread[U] := Thread(handle => handle);
+                return Left(left => thread);
+            when None do
+                return Right(right => data);
+        end case;
+    end;
+
+    generic [T: Type, U: Type]
+    function spawn(fn: Fn[Owned[T], Owned[U]], data: Owned[T]): Thread[U] is
+        let result: Either[Thread[U], Owned[T]] := safeSpawn(fn, data);
+        case result of
+            when Left(left: Thread[U]) do
+                return left;
+            when Right(right: Owned[T]) do
+                leakOwned(right);
+                abort("spawn: allocation failed");
+        end case;
+    end;
+
+    generic [T: Type]
+    function join(t: Thread[T]): Owned[T] is
+        let { handle: Address[Nat8] } := t;
+        let rawResult: Address[Nat8] := au_join_thread(handle);
+        let resultAddress: Address[T] := @embed(Address[T], "$1", rawResult);
+        return addressToOwned(resultAddress);
+    end;
+end module body.

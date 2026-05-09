@@ -10,6 +10,7 @@ all:
 	cd memory && $(MAKE)
 	cd named-argument && $(MAKE)
 	cd record && $(MAKE)
+	cd threading && $(MAKE)
 	cd union && $(MAKE)
 
 .PHONY: clean
@@ -24,4 +25,5 @@ clean:
 	cd memory && $(MAKE) clean
 	cd named-argument && $(MAKE) clean
 	cd record && $(MAKE) clean
+	cd threading && $(MAKE) clean
 	cd union && $(MAKE) clean

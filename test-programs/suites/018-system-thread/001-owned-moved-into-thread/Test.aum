@@ -1,0 +1,38 @@
+import System.Thread (
+    Owned,
+    Thread,
+    destroyOwned,
+    makeOwned,
+    spawn,
+    join
+);
+
+module body Test is
+    generic [T: Free]
+    function mustOwn(value: T): Owned[T] is
+        let result: Either[Owned[T], T] := makeOwned(value);
+        case result of
+            when Left(left: Owned[T]) do
+                return left;
+            when Right(right: T) do
+                abort("mustOwn: allocation failed");
+        end case;
+    end;
+
+    function worker(data: Owned[Int64]): Owned[Int64] is
+        return data;
+    end;
+
+    function main(): ExitCode is
+        let zero: Int64 := 0;
+        let owned: Owned[Int64] := mustOwn(zero);
+        let thread: Thread[Int64] := spawn(worker, owned);
+
+        -- This is intentionally illegal: spawn consumed `owned`.
+        destroyOwned(owned);
+
+        let returned: Owned[Int64] := join(thread);
+        destroyOwned(returned);
+        return ExitSuccess();
+    end;
+end module body.

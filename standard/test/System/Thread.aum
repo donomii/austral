@@ -1,0 +1,196 @@
+pragma Unsafe_Module;
+
+import Standard.Test.Unit (
+    assertTrue,
+    suiteHeading,
+    testHeading
+);
+import System.Thread (
+    Owned,
+    Thread,
+    destroyOwned,
+    makeOwned,
+    readOwnedFree,
+    spawn,
+    storeOwnedFree,
+    join
+);
+import System.Thread.Pool (
+    ClosedPool,
+    JobBatch,
+    OpenPool,
+    ResultBatch,
+    closePool,
+    destroyEmptyResults,
+    joinPool,
+    makeJobs,
+    pushJob,
+    removeResult,
+    resultCount,
+    runPool,
+    startPool,
+    submitJob
+);
+
+module body Standard.Test.System.Thread is
+    record SumJob: Free is
+        start: Int64;
+        stop: Int64;
+        result: Int64;
+    end;
+
+    record SquareJob: Free is
+        value: Int64;
+    end;
+
+    record SquareResult: Free is
+        input: Int64;
+        output: Int64;
+    end;
+
+    generic [T: Free]
+    function mustOwn(value: T): Owned[T] is
+        let result: Either[Owned[T], T] := makeOwned(value);
+        case result of
+            when Left(left: Owned[T]) do
+                return left;
+            when Right(right: T) do
+                abort("mustOwn: allocation failed");
+        end case;
+    end;
+
+    function assertEqInt64(got: Int64, expected: Int64, message: Span[Nat8, Static]): Unit is
+        assertTrue(got = expected, message);
+        return nil;
+    end;
+
+    function simpleWorker(data: Owned[Int64]): Owned[Int64] is
+        var result: Owned[Int64] := data;
+        let answer: Int64 := 42;
+        storeOwnedFree(&!result, answer);
+        return result;
+    end;
+
+    function sumRange(i: Int64, stop: Int64, acc: Int64): Int64 is
+        if i > stop then
+            return acc;
+        else
+            return sumRange(i + 1, stop, acc + i);
+        end if;
+    end;
+
+    function sumWorker(data: Owned[SumJob]): Owned[SumJob] is
+        var jobOwner: Owned[SumJob] := data;
+        let job: SumJob := readOwnedFree(&jobOwner);
+        let total: Int64 := sumRange(job.start, job.stop, 0);
+        let updated: SumJob := SumJob(
+            start => job.start,
+            stop => job.stop,
+            result => total
+        );
+        storeOwnedFree(&!jobOwner, updated);
+        return jobOwner;
+    end;
+
+    function squareWorker(jobOwner: Owned[SquareJob]): Owned[SquareResult] is
+        let job: SquareJob := destroyOwned(jobOwner);
+        let result: SquareResult := SquareResult(
+            input => job.value,
+            output => job.value * job.value
+        );
+        return mustOwn(result);
+    end;
+
+    function testSimpleThread(): Unit is
+        testHeading("simple thread");
+        let zero: Int64 := 0;
+        let result: Owned[Int64] := mustOwn(zero);
+        let thread: Thread[Int64] := spawn(simpleWorker, result);
+        let finished: Owned[Int64] := join(thread);
+        let value: Int64 := destroyOwned(finished);
+        assertEqInt64(value, 42, "worker returned 42");
+        return nil;
+    end;
+
+    function testParallelThreads(): Unit is
+        testHeading("parallel threads");
+        let zero: Int64 := 0;
+        let job1: SumJob := SumJob(start => 1, stop => 50, result => zero);
+        let job2: SumJob := SumJob(start => 51, stop => 100, result => zero);
+        let ownedJob1: Owned[SumJob] := mustOwn(job1);
+        let ownedJob2: Owned[SumJob] := mustOwn(job2);
+        let thread1: Thread[SumJob] := spawn(sumWorker, ownedJob1);
+        let thread2: Thread[SumJob] := spawn(sumWorker, ownedJob2);
+        let finished1: Owned[SumJob] := join(thread1);
+        let finished2: Owned[SumJob] := join(thread2);
+        let result1: SumJob := destroyOwned(finished1);
+        let result2: SumJob := destroyOwned(finished2);
+        assertEqInt64(result1.result + result2.result, 5050, "parallel sum is correct");
+        return nil;
+    end;
+
+    function assertSquareResults(results: ResultBatch[SquareResult], expectedCount: Index): Unit is
+        var remaining: ResultBatch[SquareResult] := results;
+        var count: Index := 0;
+        var sum: Int64 := 0;
+        while resultCount(&remaining) > 0 do
+            let ownedResult: Owned[SquareResult] := removeResult(&!remaining);
+            let result: SquareResult := destroyOwned(ownedResult);
+            sum := sum + result.output;
+            count := count + 1;
+        end while;
+        destroyEmptyResults(remaining);
+        assertTrue(count = expectedCount, "pool processed every job");
+        assertEqInt64(sum, 22140, "pool sum of squares is correct");
+        return nil;
+    end;
+
+    function testRunPool(): Unit is
+        testHeading("runPool");
+        let capacity: Index := 40;
+        var jobs: JobBatch[SquareJob] := makeJobs(capacity);
+        for i from 1 to 40 do
+            let value: Int64 := @embed(Int64, "((int64_t)$1)", i);
+            let job: SquareJob := SquareJob(value => value);
+            let ownedJob: Owned[SquareJob] := mustOwn(job);
+            pushJob(&!jobs, ownedJob);
+        end for;
+
+        let workers: Index := 4;
+        let results: ResultBatch[SquareResult] := runPool(squareWorker, jobs, workers);
+        assertSquareResults(results, capacity);
+        return nil;
+    end;
+
+    function testQueuedPool(): Unit is
+        testHeading("queued pool");
+        let capacity: Index := 40;
+        let workers: Index := 4;
+        var pool: OpenPool[SquareJob, SquareResult] := startPool(squareWorker, workers, workers);
+        for i from 1 to 40 do
+            let value: Int64 := @embed(Int64, "((int64_t)$1)", i);
+            let job: SquareJob := SquareJob(value => value);
+            let ownedJob: Owned[SquareJob] := mustOwn(job);
+            submitJob(&!pool, ownedJob);
+        end for;
+
+        let closed: ClosedPool[SquareJob, SquareResult] := closePool(pool);
+        let results: ResultBatch[SquareResult] := joinPool(closed);
+        assertSquareResults(results, capacity);
+        return nil;
+    end;
+
+    function threadTestSuite(): Unit is
+        suiteHeading("System.Thread");
+        testSimpleThread();
+        testParallelThreads();
+        testRunPool();
+        testQueuedPool();
+        return nil;
+    end;
+
+    function main(): ExitCode is
+        threadTestSuite();
+        return ExitSuccess();
+    end;
+end module body.

@@ -1,0 +1,58 @@
+import Austral.Memory (Address);
+
+module System.Thread is
+    -- A linear heap owner. This is the thread payload/result carrier.
+    type Owned[T: Type]: Linear;
+
+    -- A thread handle. Linear: must be joined exactly once.
+    -- The compiler rejects programs that drop or duplicate a Thread.
+    type Thread[T: Type]: Linear;
+
+    -- Allocate an owned heap value.
+    --
+    -- If allocation fails, returns the original value to avoid leaking linear
+    -- data.
+    generic [T: Type]
+    function makeOwned(payload: T): Either[Owned[T], T];
+
+    -- Consume an owner, deallocate its storage, and return the value.
+    generic [T: Type]
+    function destroyOwned(owner: Owned[T]): T;
+
+    -- Consume an owner and return its heap pointer as an untyped address.
+    --
+    -- This is for generic runtime containers such as thread queues. The caller
+    -- must eventually rebuild exactly one Owned[T] from the returned address.
+    generic [T: Type]
+    function unsafeOwnedToAddress(owner: Owned[T]): Address[Nat8];
+
+    -- Rebuild an owner from an untyped heap pointer produced by
+    -- unsafeOwnedToAddress.
+    generic [T: Type]
+    function unsafeAddressToOwned(address: Address[Nat8]): Owned[T];
+
+    -- Read a Free value from an owner.
+    generic [T: Free, R: Region]
+    function readOwnedFree(owner: &[Owned[T], R]): T;
+
+    -- Replace a Free value in an owner.
+    generic [T: Free, R: Region]
+    function storeOwnedFree(owner: &![Owned[T], R], value: T): Unit;
+
+    -- Spawn a thread running an Austral function over owned data.
+    --
+    -- Consumes `data`, so the parent cannot touch the job while the thread is
+    -- running. `join` consumes the thread handle and returns the worker result.
+    generic [T: Type, U: Type]
+    function spawn(fn: Fn[Owned[T], Owned[U]], data: Owned[T]): Thread[U];
+
+    -- Like `spawn`, but returns the original owned data if allocation of the
+    -- internal pthread job record fails.
+    generic [T: Type, U: Type]
+    function safeSpawn(fn: Fn[Owned[T], Owned[U]], data: Owned[T]): Either[Thread[U], Owned[T]];
+
+    -- Block until the thread finishes. Consumes the Thread handle and returns
+    -- the worker's owned result.
+    generic [T: Type]
+    function join(t: Thread[T]): Owned[T];
+end module.

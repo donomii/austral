@@ -1,0 +1,4 @@
+module Standard.Test.System.Thread is
+    function threadTestSuite(): Unit;
+    function main(): ExitCode;
+end module.
