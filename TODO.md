@@ -42,7 +42,7 @@ Sources reviewed:
   - Related upstream issue: #564.
 
 - [ ] Improve parser edge cases and diagnostics.
-  - [ ] Empty borrow body should either parse or produce a clear diagnostic.
+  - [x] Empty borrow body should either parse or produce a clear diagnostic.
   - [ ] Reserved names like `Region` should produce a clear diagnostic.
   - [ ] Add parser error tests with source spans.
   - Related upstream issues: #585, #584.
