@@ -5,6 +5,7 @@
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 *)
 open Identifier
+open Common
 open Type
 open MonoType
 open MonoTypeBindings
@@ -39,6 +40,13 @@ module Errors = struct
       Text "Unknown module ";
       Code (mod_name_string name);
       Text "."
+    ]
+
+  let record_constructor_not_public name =
+    austral_raise TypeError [
+      Text "The constructor for record ";
+      Code (ident_string name);
+      Text " is not public."
     ]
 end
 
@@ -319,13 +327,23 @@ let get_union_cases (env: env) (id: decl_id): decl list =
   in
   List.filter pred decls
 
+let record_constructor_visible (env: env) (importing_module_name: module_name) (decl_module_id: mod_id) (vis: type_vis): bool =
+  match vis with
+  | TypeVisPublic ->
+     true
+  | TypeVisOpaque
+  | TypeVisPrivate ->
+     equal_module_name importing_module_name (module_name_from_id env decl_module_id)
+
 let get_callable (env: env) (importing_module_name: module_name) (name: sident): callable option =
-  let _ = importing_module_name in
   match get_decl_by_name env name with
   | Some decl ->
      (match decl with
-      | Record { id; typarams; universe; slots; _ } ->
-         Some (RecordConstructor (id, typarams, universe, slots))
+      | Record { id; mod_id; vis; name=record_name; typarams; universe; slots; _ } ->
+         if record_constructor_visible env importing_module_name mod_id vis then
+           Some (RecordConstructor (id, typarams, universe, slots))
+         else
+           Errors.record_constructor_not_public record_name
       | UnionCase { name; union_id; slots; _ } ->
          let (typarams, universe) =
            (match get_decl_by_id env union_id with

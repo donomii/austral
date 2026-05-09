@@ -1,0 +1,21 @@
+{
+  "module": "Test",
+  "kind": "Type Error",
+  "text": [
+    { "type": "text", "content": "The constructor for record " },
+    { "type": "code", "content": "Token" },
+    { "type": "text", "content": " is not public." }
+  ],
+  "span": {
+    "filename": "test-programs/suites/011-bugs/opaque-constructor-forgery/Test.aum",
+    "startp": { "line": 5, "column": 8 },
+    "end": { "line": 5, "column": 36 }
+  },
+  "context": [
+    [ 3, "module body Test is" ],
+    [ 4, "    function main(): ExitCode is" ],
+    [ 5, "        let token: Token := Token();" ],
+    [ 6, "        consume(token);" ],
+    [ 7, "        return ExitSuccess();" ]
+  ]
+}

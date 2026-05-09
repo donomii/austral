@@ -1,0 +1,9 @@
+import Forge (Token, consume);
+
+module body Test is
+    function main(): ExitCode is
+        let token: Token := Token();
+        consume(token);
+        return ExitSuccess();
+    end;
+end module body.

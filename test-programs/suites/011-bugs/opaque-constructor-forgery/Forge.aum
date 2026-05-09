@@ -1,0 +1,9 @@
+module body Forge is
+    record Token: Linear is
+    end;
+
+    function consume(token: Token): Unit is
+        let {} := token;
+        return nil;
+    end;
+end module body.

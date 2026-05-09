@@ -1,0 +1,4 @@
+module Forge is
+    type Token: Linear;
+    function consume(token: Token): Unit;
+end module.

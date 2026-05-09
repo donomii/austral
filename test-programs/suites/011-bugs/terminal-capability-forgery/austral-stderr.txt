@@ -1,0 +1,21 @@
+{
+  "module": "Test",
+  "kind": "Type Error",
+  "text": [
+    { "type": "text", "content": "The constructor for record " },
+    { "type": "code", "content": "TerminalCapability" },
+    { "type": "text", "content": " is not public." }
+  ],
+  "span": {
+    "filename": "test-programs/suites/011-bugs/terminal-capability-forgery/Test.aum",
+    "startp": { "line": 8, "column": 8 },
+    "end": { "line": 8, "column": 61 }
+  },
+  "context": [
+    [ 6, "module body Test is" ],
+    [ 7, "    function main(): ExitCode is" ],
+    [ 8, "        let term: TerminalCapability := TerminalCapability();" ],
+    [ 9, "        releaseTerminal(term);" ],
+    [ 10, "        return ExitSuccess();" ]
+  ]
+}

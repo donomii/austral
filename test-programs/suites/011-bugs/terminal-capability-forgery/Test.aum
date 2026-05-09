@@ -1,0 +1,12 @@
+import Standard.IO (
+    TerminalCapability,
+    releaseTerminal
+);
+
+module body Test is
+    function main(): ExitCode is
+        let term: TerminalCapability := TerminalCapability();
+        releaseTerminal(term);
+        return ExitSuccess();
+    end;
+end module body.

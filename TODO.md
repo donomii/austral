@@ -49,19 +49,21 @@ Sources reviewed:
 
 ## Capability Security
 
-- [ ] Verify whether imported opaque/capability types are forgeable.
-  - [ ] Try constructing `TerminalCapability()` outside its defining module.
-  - [ ] Try constructing a custom exported opaque linear capability outside its
+- [x] Verify whether imported opaque/capability types are forgeable.
+  - [x] Try constructing `TerminalCapability()` outside its defining module.
+  - [x] Try constructing a custom exported opaque linear capability outside its
         defining module.
-  - [ ] Compare actual compiler behavior to the spec and tutorial.
+  - [x] Compare actual compiler behavior to the spec and tutorial.
   - Related upstream issue: #601.
 
-- [ ] Make capabilities unforgeable if they are currently forgeable.
-  - [ ] Separate "type is importable" from "constructor is importable".
-  - [ ] Ensure opaque record constructors are private outside the defining
+- [x] Make capabilities unforgeable if they are currently forgeable.
+  - [x] Separate "type is importable" from "constructor is importable".
+  - [x] Ensure opaque record constructors are private outside the defining
         module.
-  - [ ] Add compile-fail tests for forged filesystem, terminal, environment,
-        network, and clock capabilities.
+  - [x] Add a compile-fail test for forging an imported opaque capability.
+  - [x] Add a compile-fail test for forged terminal capability.
+  - [ ] Add compile-fail tests for forged filesystem, environment, network, and
+        clock capabilities as those capabilities are added.
 
 - [ ] Define a small capability hierarchy for production services.
   - [ ] Root capability.
