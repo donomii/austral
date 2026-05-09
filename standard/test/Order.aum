@@ -5,26 +5,237 @@
 -- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 import Standard.Order (
-    equal
+    PartialOrder,
+    TotalOrder,
+    Ordering,
+    PartialOrdering,
+    LessThan,
+    Equal,
+    GreaterThan,
+    Comparable,
+    Incomparable,
+    partialCompare,
+    compare,
+    equal,
+    lessThan,
+    lessThanOrEqual,
+    greaterThan,
+    greaterThanOrEqual
 );
 import Standard.Test.Unit (
     suiteHeading,
     testHeading,
     assertTrue,
-    assertFalse
+    assertFalse,
+    assertSuccess,
+    assertFailure
 );
 
 module body Standard.Test.Order is
     function orderTestSuite(): Unit is
         suiteHeading("Standard.Order");
+        boolTest();
         nat8Test();
+        nat16Test();
+        nat32Test();
+        nat64Test();
+        int8Test();
+        int16Test();
+        int32Test();
+        int64Test();
+        indexTest();
+        return nil;
+    end;
+
+    function assertLessThan(order: Ordering, message: Span[Nat8, Static]): Unit is
+        case order of
+            when LessThan do
+                assertSuccess(message);
+            when Equal do
+                assertFailure(message);
+            when GreaterThan do
+                assertFailure(message);
+        end case;
+        return nil;
+    end;
+
+    function assertOrderingEqual(order: Ordering, message: Span[Nat8, Static]): Unit is
+        case order of
+            when LessThan do
+                assertFailure(message);
+            when Equal do
+                assertSuccess(message);
+            when GreaterThan do
+                assertFailure(message);
+        end case;
+        return nil;
+    end;
+
+    function assertGreaterThan(order: Ordering, message: Span[Nat8, Static]): Unit is
+        case order of
+            when LessThan do
+                assertFailure(message);
+            when Equal do
+                assertFailure(message);
+            when GreaterThan do
+                assertSuccess(message);
+        end case;
+        return nil;
+    end;
+
+    function assertPartialLessThan(order: PartialOrdering, message: Span[Nat8, Static]): Unit is
+        case order of
+            when Comparable(order as ord: Ordering) do
+                assertLessThan(ord, message);
+            when Incomparable do
+                assertFailure(message);
+        end case;
+        return nil;
+    end;
+
+    function assertPartialEqual(order: PartialOrdering, message: Span[Nat8, Static]): Unit is
+        case order of
+            when Comparable(order as ord: Ordering) do
+                assertOrderingEqual(ord, message);
+            when Incomparable do
+                assertFailure(message);
+        end case;
+        return nil;
+    end;
+
+    function assertPartialGreaterThan(order: PartialOrdering, message: Span[Nat8, Static]): Unit is
+        case order of
+            when Comparable(order as ord: Ordering) do
+                assertGreaterThan(ord, message);
+            when Incomparable do
+                assertFailure(message);
+        end case;
+        return nil;
+    end;
+
+    generic [T: Type(TotalOrder), R: Region, S: Region, U: Region]
+    function assertTotalOrderValues(low: &[T, R], same: &[T, S], high: &[T, U]): Unit is
+        assertTrue(equal(low, same), "equal returns true for equal values");
+        assertFalse(equal(low, high), "equal returns false for different values");
+        assertTrue(lessThan(low, high), "lessThan returns true for ascending values");
+        assertFalse(lessThan(high, low), "lessThan returns false for descending values");
+        assertTrue(lessThanOrEqual(low, same), "lessThanOrEqual returns true for equal values");
+        assertTrue(lessThanOrEqual(low, high), "lessThanOrEqual returns true for ascending values");
+        assertTrue(greaterThan(high, low), "greaterThan returns true for descending values");
+        assertFalse(greaterThan(low, high), "greaterThan returns false for ascending values");
+        assertTrue(greaterThanOrEqual(low, same), "greaterThanOrEqual returns true for equal values");
+        assertTrue(greaterThanOrEqual(high, low), "greaterThanOrEqual returns true for descending values");
+        assertLessThan(compare(low, high), "compare returns LessThan");
+        assertOrderingEqual(compare(low, same), "compare returns Equal");
+        assertGreaterThan(compare(high, low), "compare returns GreaterThan");
+        return nil;
+    end;
+
+    generic [T: Type(PartialOrder), R: Region, S: Region, U: Region]
+    function assertPartialOrderValues(low: &[T, R], same: &[T, S], high: &[T, U]): Unit is
+        assertPartialLessThan(partialCompare(low, high), "partialCompare returns LessThan");
+        assertPartialEqual(partialCompare(low, same), "partialCompare returns Equal");
+        assertPartialGreaterThan(partialCompare(high, low), "partialCompare returns GreaterThan");
+        return nil;
+    end;
+
+    function boolTest(): Unit is
+        testHeading("Bool");
+        let low: Bool := false;
+        let same: Bool := false;
+        let high: Bool := true;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
         return nil;
     end;
 
     function nat8Test(): Unit is
         testHeading("Nat8");
-        let a: Nat8 := 0;
-        assertTrue(equal(&a, &a), "equal() works");
+        let low: Nat8 := 0;
+        let same: Nat8 := 0;
+        let high: Nat8 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function nat16Test(): Unit is
+        testHeading("Nat16");
+        let low: Nat16 := 0;
+        let same: Nat16 := 0;
+        let high: Nat16 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function nat32Test(): Unit is
+        testHeading("Nat32");
+        let low: Nat32 := 0;
+        let same: Nat32 := 0;
+        let high: Nat32 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function nat64Test(): Unit is
+        testHeading("Nat64");
+        let low: Nat64 := 0;
+        let same: Nat64 := 0;
+        let high: Nat64 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function int8Test(): Unit is
+        testHeading("Int8");
+        let low: Int8 := -1;
+        let same: Int8 := -1;
+        let high: Int8 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function int16Test(): Unit is
+        testHeading("Int16");
+        let low: Int16 := -1;
+        let same: Int16 := -1;
+        let high: Int16 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function int32Test(): Unit is
+        testHeading("Int32");
+        let low: Int32 := -1;
+        let same: Int32 := -1;
+        let high: Int32 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function int64Test(): Unit is
+        testHeading("Int64");
+        let low: Int64 := -1;
+        let same: Int64 := -1;
+        let high: Int64 := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
+        return nil;
+    end;
+
+    function indexTest(): Unit is
+        testHeading("Index");
+        let low: Index := 0;
+        let same: Index := 0;
+        let high: Index := 1;
+        assertTotalOrderValues(&low, &same, &high);
+        assertPartialOrderValues(&low, &same, &high);
         return nil;
     end;
 end module body.

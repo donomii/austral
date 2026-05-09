@@ -5,6 +5,8 @@
 -- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 import Standard.Equality (
+    PartialEquality,
+    Equality,
     partialEq,
     equal
 );
@@ -18,7 +20,41 @@ import Standard.Test.Unit (
 module body Standard.Test.Equality is
     function equalityTestSuite(): Unit is
         suiteHeading("Standard.Equality");
+        boolTest();
         unitTest();
+        nat8Test();
+        nat16Test();
+        nat32Test();
+        nat64Test();
+        int8Test();
+        int16Test();
+        int32Test();
+        int64Test();
+        indexTest();
+        return nil;
+    end;
+
+    generic [T: Type(PartialEquality), R: Region, S: Region, U: Region]
+    function assertPartialEqualityValues(a: &[T, R], b: &[T, S], c: &[T, U]): Unit is
+        assertTrue(partialEq(a, b), "partialEq returns true for equal values");
+        assertFalse(partialEq(a, c), "partialEq returns false for different values");
+        return nil;
+    end;
+
+    generic [T: Type(Equality), R: Region, S: Region, U: Region]
+    function assertEqualityValues(a: &[T, R], b: &[T, S], c: &[T, U]): Unit is
+        assertTrue(equal(a, b), "equal returns true for equal values");
+        assertFalse(equal(a, c), "equal returns false for different values");
+        return nil;
+    end;
+
+    function boolTest(): Unit is
+        testHeading("Bool");
+        let a: Bool := false;
+        let b: Bool := false;
+        let c: Bool := true;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
         return nil;
     end;
 
@@ -27,6 +63,96 @@ module body Standard.Test.Equality is
         let u: Unit := nil;
         assertTrue(partialEq(&u, &u), "nil is partially equivalent to itself.");
         assertTrue(equal(&u, &u), "nil is equal to itself.");
+        return nil;
+    end;
+
+    function nat8Test(): Unit is
+        testHeading("Nat8");
+        let a: Nat8 := 0;
+        let b: Nat8 := 0;
+        let c: Nat8 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function nat16Test(): Unit is
+        testHeading("Nat16");
+        let a: Nat16 := 0;
+        let b: Nat16 := 0;
+        let c: Nat16 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function nat32Test(): Unit is
+        testHeading("Nat32");
+        let a: Nat32 := 0;
+        let b: Nat32 := 0;
+        let c: Nat32 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function nat64Test(): Unit is
+        testHeading("Nat64");
+        let a: Nat64 := 0;
+        let b: Nat64 := 0;
+        let c: Nat64 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function int8Test(): Unit is
+        testHeading("Int8");
+        let a: Int8 := -1;
+        let b: Int8 := -1;
+        let c: Int8 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function int16Test(): Unit is
+        testHeading("Int16");
+        let a: Int16 := -1;
+        let b: Int16 := -1;
+        let c: Int16 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function int32Test(): Unit is
+        testHeading("Int32");
+        let a: Int32 := -1;
+        let b: Int32 := -1;
+        let c: Int32 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function int64Test(): Unit is
+        testHeading("Int64");
+        let a: Int64 := -1;
+        let b: Int64 := -1;
+        let c: Int64 := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
+        return nil;
+    end;
+
+    function indexTest(): Unit is
+        testHeading("Index");
+        let a: Index := 0;
+        let b: Index := 0;
+        let c: Index := 1;
+        assertPartialEqualityValues(&a, &b, &c);
+        assertEqualityValues(&a, &b, &c);
         return nil;
     end;
 end module body.

@@ -5,17 +5,157 @@
 -- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 module body Standard.Equality is
+    instance PartialEquality(Bool) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Bool, R], b: &[Bool, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
     instance PartialEquality(Unit) is
         generic [R: Region, S: Region]
-		method partialEq(a: &[Unit, R], b: &[Unit, S]): Bool is
-             return true;
+        method partialEq(a: &[Unit, R], b: &[Unit, S]): Bool is
+            return true;
+        end;
+    end;
+
+    instance PartialEquality(Nat8) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Nat8, R], b: &[Nat8, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Nat16) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Nat16, R], b: &[Nat16, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Nat32) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Nat32, R], b: &[Nat32, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Nat64) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Nat64, R], b: &[Nat64, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Int8) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Int8, R], b: &[Int8, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Int16) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Int16, R], b: &[Int16, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Int32) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Int32, R], b: &[Int32, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Int64) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Int64, R], b: &[Int64, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance PartialEquality(Index) is
+        generic [R: Region, S: Region]
+        method partialEq(a: &[Index, R], b: &[Index, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Bool) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Bool, R], b: &[Bool, S]): Bool is
+            return !a = !b;
         end;
     end;
 
     instance Equality(Unit) is
         generic [R: Region, S: Region]
-		method equal(a: &[Unit, R], b: &[Unit, S]): Bool is
-             return true;
+        method equal(a: &[Unit, R], b: &[Unit, S]): Bool is
+            return true;
+        end;
+    end;
+
+    instance Equality(Nat8) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Nat8, R], b: &[Nat8, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Nat16) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Nat16, R], b: &[Nat16, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Nat32) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Nat32, R], b: &[Nat32, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Nat64) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Nat64, R], b: &[Nat64, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Int8) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Int8, R], b: &[Int8, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Int16) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Int16, R], b: &[Int16, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Int32) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Int32, R], b: &[Int32, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Int64) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Int64, R], b: &[Int64, S]): Bool is
+            return !a = !b;
+        end;
+    end;
+
+    instance Equality(Index) is
+        generic [R: Region, S: Region]
+        method equal(a: &[Index, R], b: &[Index, S]): Bool is
+            return !a = !b;
         end;
     end;
 end module body.

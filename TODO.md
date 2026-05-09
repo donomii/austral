@@ -120,10 +120,10 @@ Sources reviewed:
 
 ## Standard Library
 
-- [ ] Finish primitive equality and ordering.
-  - [ ] Add equality/order instances for primitive integer and boolean types.
-  - [ ] Add tests for every primitive instance.
-  - [ ] Add useful comparison helpers.
+- [x] Finish primitive equality and ordering.
+  - [x] Add equality/order instances for primitive integer and boolean types.
+  - [x] Add tests for every primitive instance.
+  - [x] Add useful comparison helpers.
   - Related upstream issue: #619.
 
 - [ ] Harden core containers.
