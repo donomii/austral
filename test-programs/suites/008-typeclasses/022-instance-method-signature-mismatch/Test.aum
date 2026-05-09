@@ -1,0 +1,18 @@
+module body Test is
+    typeclass SomeTypeclass(T: Type) is
+        method foo(x: T): Unit;
+    end;
+
+    record SomeRecord: Free is
+    end;
+
+    instance SomeTypeclass(SomeRecord) is
+        method foo(x: Nat8): Unit is
+            return nil;
+        end;
+    end;
+
+    function main(): ExitCode is
+        return ExitSuccess();
+    end;
+end module body.

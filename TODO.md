@@ -16,8 +16,8 @@ Sources reviewed:
 
 - [ ] Fix typeclass checking soundness.
   - [x] Reject instances that omit required typeclass methods.
-  - [ ] Reject instance methods whose signatures do not match the typeclass.
-  - [ ] Add compile-fail tests for both cases.
+  - [x] Reject instance methods whose signatures do not match the typeclass.
+  - [x] Add compile-fail tests for both cases.
   - Related upstream issues: #600, #582.
 
 - [ ] Fix generic/region monomorphization bugs.

@@ -890,7 +890,7 @@ module body Austral.Pervasive is
         end;
 
         generic [R: Region]
-        method printSpan(array: Span[Unit, R]): Unit is
+        method printSpan(array: Span[Bool, R]): Unit is
             return nil;
         end;
     end;

@@ -1,0 +1,36 @@
+{
+  "module": "Test",
+  "kind": "Declaration Error",
+  "text": [
+    { "type": "text", "content": "The method " },
+    { "type": "code", "content": "foo" },
+    { "type": "text", "content": " in the instance for typeclass " },
+    { "type": "code", "content": "SomeTypeclass" },
+    {
+      "type": "text",
+      "content": " has an incompatible parameter type. Expected "
+    },
+    { "type": "type", "content": "SomeRecord" },
+    { "type": "text", "content": " but got " },
+    { "type": "type", "content": "Nat8" },
+    { "type": "text", "content": "." }
+  ],
+  "span": {
+    "filename": "test-programs/suites/008-typeclasses/022-instance-method-signature-mismatch/Test.aum",
+    "startp": { "line": 7, "column": 8 },
+    "end": { "line": 13, "column": 8 }
+  },
+  "context": [
+    [ 5, "" ],
+    [ 6, "    record SomeRecord: Free is" ],
+    [ 7, "    end;" ],
+    [ 8, "" ],
+    [ 9, "    instance SomeTypeclass(SomeRecord) is" ],
+    [ 10, "        method foo(x: Nat8): Unit is" ],
+    [ 11, "            return nil;" ],
+    [ 12, "        end;" ],
+    [ 13, "    end;" ],
+    [ 14, "" ],
+    [ 15, "    function main(): ExitCode is" ]
+  ]
+}

@@ -23,6 +23,7 @@ open TypeParser
 open TypeSignature
 open TypeParameter
 open TypeParameters
+open TypeBindings
 open TypeClasses
 open RegionMap
 open BuiltIn
@@ -82,6 +83,50 @@ module Errors = struct
       Code (ident_string typeclass);
       Text " is missing the required method ";
       Code (ident_string method_name);
+      Text "."
+    ]
+
+  let instance_method_type_parameters_mismatch ~typeclass ~method_name =
+    austral_raise DeclarationError [
+      Text "The method ";
+      Code (ident_string method_name);
+      Text " in the instance for typeclass ";
+      Code (ident_string typeclass);
+      Text " has incompatible type parameters."
+    ]
+
+  let instance_method_arity_mismatch ~typeclass ~method_name =
+    austral_raise DeclarationError [
+      Text "The method ";
+      Code (ident_string method_name);
+      Text " in the instance for typeclass ";
+      Code (ident_string typeclass);
+      Text " has the wrong number of parameters."
+    ]
+
+  let instance_method_parameter_type_mismatch ~typeclass ~method_name ~expected ~actual =
+    austral_raise DeclarationError [
+      Text "The method ";
+      Code (ident_string method_name);
+      Text " in the instance for typeclass ";
+      Code (ident_string typeclass);
+      Text " has an incompatible parameter type. Expected ";
+      Type expected;
+      Text " but got ";
+      Type actual;
+      Text "."
+    ]
+
+  let instance_method_return_type_mismatch ~typeclass ~method_name ~expected ~actual =
+    austral_raise DeclarationError [
+      Text "The method ";
+      Code (ident_string method_name);
+      Text " in the instance for typeclass ";
+      Code (ident_string typeclass);
+      Text " has an incompatible return type. Expected ";
+      Type expected;
+      Text " but got ";
+      Type actual;
       Text "."
     ]
 
@@ -188,6 +233,96 @@ let check_all_type_parameters_appear_in_signature (typarams: typarams) (params: 
       Errors.typaram_not_in_signature tp
   in
   List.iter check_typaram (typarams_as_list typarams)
+
+let type_parameters_have_same_shape (expected: type_parameter) (actual: type_parameter): bool =
+  let expected_constraints = typaram_constraints expected
+  and actual_constraints = typaram_constraints actual in
+  (equal_universe (typaram_universe expected) (typaram_universe actual))
+  && (List.length expected_constraints = List.length actual_constraints)
+  && (List.for_all2 equal_sident expected_constraints actual_constraints)
+
+let add_method_type_parameter_bindings ~typeclass ~method_name (bindings: type_bindings) (expected: typarams) (actual: typarams): type_bindings =
+  let expected_params = typarams_as_list expected
+  and actual_params = typarams_as_list actual in
+  if List.length expected_params = List.length actual_params then
+    List.fold_left2
+      (fun bindings expected_param actual_param ->
+        if type_parameters_have_same_shape expected_param actual_param then
+          add_binding bindings expected_param (TyVar (typaram_to_tyvar actual_param))
+        else
+          Errors.instance_method_type_parameters_mismatch
+            ~typeclass
+            ~method_name)
+      bindings
+      expected_params
+      actual_params
+  else
+    Errors.instance_method_type_parameters_mismatch
+      ~typeclass
+      ~method_name
+
+let check_instance_method_signature ~typeclass ~typeclass_param ~argument method_decl method_input: unit =
+  match method_decl with
+  | TypeClassMethod {
+        name = method_name;
+        typarams = expected_typarams;
+        value_params = expected_params;
+        rt = expected_rt;
+        _
+      } ->
+     let {
+         typarams = actual_typarams;
+         value_params = actual_params;
+         rt = actual_rt;
+         _
+       } = method_input
+     in
+     let bindings = add_binding empty_bindings typeclass_param argument in
+     let bindings =
+       add_method_type_parameter_bindings
+         ~typeclass
+         ~method_name
+         bindings
+         expected_typarams
+         actual_typarams
+     in
+     let expected_params =
+       List.map
+         (fun (ValueParameter (_, ty)) -> replace_variables bindings ty)
+         expected_params
+     and actual_params =
+       List.map
+         (fun (ValueParameter (_, ty)) -> ty)
+         actual_params
+     in
+     if List.length expected_params = List.length actual_params then
+       List.iter2
+         (fun expected actual ->
+           if equal_ty expected actual then
+             ()
+           else
+             Errors.instance_method_parameter_type_mismatch
+               ~typeclass
+               ~method_name
+               ~expected
+               ~actual)
+         expected_params
+         actual_params
+     else
+       Errors.instance_method_arity_mismatch
+         ~typeclass
+         ~method_name;
+     let expected_rt = replace_variables bindings expected_rt in
+     if equal_ty expected_rt actual_rt then
+       ()
+     else
+       Errors.instance_method_return_type_mismatch
+         ~typeclass
+         ~method_name
+         ~expected:expected_rt
+         ~actual:actual_rt
+  | _ ->
+     internal_err "Expected typeclass method."
 
 let rec extract_type_signatures (CombinedModule { decls; _ }): type_signature list =
   List.filter_map extract_type_signatures' decls
@@ -493,12 +628,12 @@ and extract_definition (env: env) (mod_id: mod_id) (mn: module_name) (local_type
          (* First add the instance to the env, then the methods. *)
          let argument = parse' rm typarams argument in
          (* Find typeclass info. *)
-         let (typeclass_id, typeclass_mod_id, typeclass_param_name, universe): decl_id * mod_id * identifier * universe =
+         let (typeclass_id, typeclass_mod_id, typeclass_param, universe): decl_id * mod_id * type_parameter * universe =
            match get_decl_by_name env (qident_to_sident name) with
            | Some decl ->
               (match decl with
                | TypeClass { id; mod_id; param; _ } ->
-                  (id, mod_id, typaram_name param, typaram_universe param)
+                  (id, mod_id, param, typaram_universe param)
                | _ ->
                   Errors.instance_for_non_typeclass typeclass_name)
            | None ->
@@ -510,7 +645,7 @@ and extract_definition (env: env) (mod_id: mod_id) (mn: module_name) (local_type
          let _ = check_instance_argument_has_right_shape typarams argument in
          (* Check that the non of the type parameters in the generic instance
             collide with the type parameter of the typeclass. *)
-         let _ = check_disjoint_typarams typeclass_param_name typarams in
+         let _ = check_disjoint_typarams (typaram_name typeclass_param) typarams in
          (* Local uniqueness: does this instance collide with other instances in this module? *)
          let _ =
            let other_instances: decl list =
@@ -556,22 +691,30 @@ and extract_definition (env: env) (mod_id: mod_id) (mn: module_name) (local_type
          in
          let methods: (instance_method_input * astmt) list = List.map method_map methods in
          let required_methods: decl list = get_methods_from_typeclass_id env typeclass_id in
-         let has_required_method (required_id: decl_id): bool =
-           List.exists
-             (fun (input, _) -> equal_decl_id input.method_id required_id)
-             methods
+         let find_instance_method (required_id: decl_id): instance_method_input option =
+           Option.map
+             fst
+             (List.find_opt
+                (fun (input, _) -> equal_decl_id input.method_id required_id)
+                methods)
          in
          let _ =
            List.iter
              (fun method_decl ->
                match method_decl with
                | TypeClassMethod { id; name; _ } ->
-                  if has_required_method id then
-                    ()
-                  else
+                  (match find_instance_method id with
+                   | Some method_input ->
+                      check_instance_method_signature
+                        ~typeclass:typeclass_name
+                        ~typeclass_param
+                        ~argument
+                        method_decl
+                        method_input
+                   | None ->
                     Errors.instance_missing_method
                       ~typeclass:typeclass_name
-                      ~method_name:name
+                      ~method_name:name)
                | _ ->
                   internal_err "Expected typeclass method.")
              required_methods
