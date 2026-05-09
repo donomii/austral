@@ -48,7 +48,10 @@ module Standard.IO.Terminal is
 
     """
     Read a line from the standard input.
+
+    Returns None if EOF is reached before any byte is read. Returns Some with
+    an empty string for an empty line.
     """
     generic [R: Region]
-    function readLine(stdin: &![StandardInput, R]): String;
+    function readLine(stdin: &![StandardInput, R]): Option[String];
 end module.

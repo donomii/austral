@@ -22,6 +22,10 @@ import Standard.StringBuilder (
     finalize,
     writeByte as sbWriteByte
 );
+import Standard.String (
+    String,
+    destroyString
+);
 
 module body Standard.IO.Terminal is
     record StandardOutput: Linear is
@@ -105,12 +109,14 @@ module body Standard.IO.Terminal is
     end;
 
     generic [R: Region]
-    function readLine(stdin: &![StandardInput, R]): String is
+    function readLine(stdin: &![StandardInput, R]): Option[String] is
         var sb: StringBuilder := makeStringBuilder();
         var reading: Bool := true;
+        var sawByte: Bool := false;
         while reading do
             case readByte(&~stdin) of
                 when Some(value as byte: Nat8) do
+                    sawByte := true;
                     if (byte = '\r') or (byte = '\n') then
                         reading := false;
                     else
@@ -121,7 +127,13 @@ module body Standard.IO.Terminal is
                     reading := false;
             end case;
         end while;
-        return finalize(sb);
+        let line: String := finalize(sb);
+        if sawByte then
+            return Some(value => line);
+        else
+            destroyString(line);
+            return None();
+        end if;
     end;
 
     --

@@ -52,11 +52,19 @@ class Test(object):
     c_path: str
     bin_path: str
 
-    def __init__(self, name: str, suite_name: str, directory: str, cli: str | None):
+    def __init__(
+        self,
+        name: str,
+        suite_name: str,
+        directory: str,
+        cli: str | None,
+        program_stdin: str | None,
+    ):
         self.name = name
         self.suite_name = suite_name
         self.directory = directory
         self.cli = cli
+        self.program_stdin = program_stdin
         ident: str = suite_name + "_" + name
         self.c_path = "/tmp/austral_e2e_" + ident + ".c"
         self.bin_path = "/tmp/austral_e2e_" + ident + ".bin"
@@ -75,9 +83,10 @@ class TestSuccess(Test):
         suite_name: str,
         directory: str,
         cli: str | None,
+        program_stdin: str | None,
         expected_output: str | None,
     ):
-        super().__init__(name, suite_name, directory, cli)
+        super().__init__(name, suite_name, directory, cli, program_stdin)
         self.expected_output = expected_output
 
 
@@ -94,9 +103,10 @@ class TestFailure(Test):
         suite_name: str,
         directory: str,
         cli: str | None,
+        program_stdin: str | None,
         expected_compiler_error: str,
     ):
-        super().__init__(name, suite_name, directory, cli)
+        super().__init__(name, suite_name, directory, cli, program_stdin)
         self.expected_compiler_error = expected_compiler_error
 
 
@@ -114,9 +124,10 @@ class TestProgramFailure(Test):
         suite_name: str,
         directory: str,
         cli: str | None,
+        program_stdin: str | None,
         expected_program_stderr: str,
     ):
-        super().__init__(name, suite_name, directory, cli)
+        super().__init__(name, suite_name, directory, cli, program_stdin)
         self.expected_program_stderr = expected_program_stderr
 
 
@@ -259,6 +270,9 @@ def collect_tests() -> list[Test]:
             program_stderr: str | None = _get_file_contents(
                 test_dir, "program-stderr.txt"
             )
+            program_stdin: str | None = _get_file_contents_raw(
+                test_dir, "program-stdin.txt"
+            )
             cli: str | None = _get_file_contents(test_dir, "cli.txt")
             if (expected_error is not None) and (expected_output is not None):
                 raise ValueError(
@@ -273,6 +287,7 @@ def collect_tests() -> list[Test]:
                         suite_name=suite_name,
                         directory=test_dir,
                         cli=cli,
+                        program_stdin=program_stdin,
                         expected_compiler_error=expected_error,
                     )
                 )
@@ -285,6 +300,7 @@ def collect_tests() -> list[Test]:
                         suite_name=suite_name,
                         directory=test_dir,
                         cli=cli,
+                        program_stdin=program_stdin,
                         expected_output=expected_output,
                     )
                 )
@@ -299,6 +315,7 @@ def collect_tests() -> list[Test]:
                             suite_name=suite_name,
                             directory=test_dir,
                             cli=cli,
+                            program_stdin=program_stdin,
                             expected_output=None,
                         )
                     )
@@ -311,6 +328,7 @@ def collect_tests() -> list[Test]:
                             suite_name=suite_name,
                             directory=test_dir,
                             cli=cli,
+                            program_stdin=program_stdin,
                             expected_program_stderr=program_stderr,
                         )
                     )
@@ -324,6 +342,14 @@ def _get_file_contents(test_dir: str, filename: str) -> str | None:
             if not data:
                 raise ValueError(f"`{filename}` exists, but it is empty.")
             return data
+    else:
+        return None
+
+
+def _get_file_contents_raw(test_dir: str, filename: str) -> str | None:
+    if os.path.isfile(os.path.join(test_dir, filename)):
+        with open(os.path.join(test_dir, filename), "r") as stream:
+            return stream.read()
     else:
         return None
 
@@ -426,6 +452,7 @@ def _run_success_test(test: TestSuccess) -> TestResult:
     # GCC compilation succeeded. Run the program.
     result: subprocess.CompletedProcess = subprocess.run(
         [test.bin_path],
+        input=_program_stdin(test),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -494,6 +521,13 @@ def trim_lines(text):
     return "\n".join(
         [line if line.strip() else "" for line in text.strip().split("\n")]
     )
+
+
+def _program_stdin(test: Test) -> bytes | None:
+    if test.program_stdin is None:
+        return None
+    else:
+        return test.program_stdin.encode("utf-8")
 
 
 def _run_failure_test(test: TestFailure, replace_stderr: bool) -> TestResult:
@@ -594,6 +628,7 @@ def _run_program_failure_test(test: TestProgramFailure) -> TestResult:
     # GCC compilation succeeded. Run the program.
     result: subprocess.CompletedProcess = subprocess.run(
         [test.bin_path],
+        input=_program_stdin(test),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

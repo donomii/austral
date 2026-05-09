@@ -135,7 +135,7 @@ Sources reviewed:
         modules.
 
 - [ ] Improve terminal and basic IO.
-  - [ ] Make `readLine` distinguish EOF from an empty line.
+  - [x] Make `readLine` distinguish EOF from an empty line.
   - [ ] Audit all functions for capability requirements and error returns.
   - Related upstream issue: #597.
 

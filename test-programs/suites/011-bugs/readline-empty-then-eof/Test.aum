@@ -1,7 +1,7 @@
 import Standard.IO (
+    TerminalCapability,
     acquireTerminal,
-    releaseTerminal,
-    TerminalCapability
+    releaseTerminal
 );
 import Standard.IO.Terminal (
     StandardInput,
@@ -10,13 +10,12 @@ import Standard.IO.Terminal (
     readLine
 );
 import Standard.String (
-    String, 
-    destroyString, 
-    getSpan,
+    String,
+    destroyString,
     length
 );
 
-module body Example.Greet is
+module body Test is
     function main(root: RootCapability): ExitCode is
         var mutRoot: RootCapability := root;
         var terminal: TerminalCapability := acquireTerminal(&!mutRoot);
@@ -24,20 +23,27 @@ module body Example.Greet is
 
         case readLine(&!input) of
             when Some(value as line: String) do
-                print("Hello, ");
-                if length(&line) > 0 then
-                    print(getSpan(&line, 0, length(&line) - 1));
+                if length(&line) = 0 then
+                    printLn("EMPTY");
                 else
-                    skip;
+                    printLn("BAD");
                 end if;
-                printLn("!");
                 destroyString(line);
             when None do
-                printLn("Hello!");
+                printLn("BAD");
         end case;
+
+        case readLine(&!input) of
+            when Some(value as line: String) do
+                destroyString(line);
+                printLn("BAD");
+            when None do
+                printLn("EOF");
+        end case;
+
         releaseInput(input);
         releaseTerminal(terminal);
-        surrenderRoot(mutRoot); 
+        surrenderRoot(mutRoot);
         return ExitSuccess();
     end;
 end module body.
