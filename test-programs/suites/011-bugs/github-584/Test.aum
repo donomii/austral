@@ -1,0 +1,15 @@
+module body Test is
+    record Foo: Linear is
+    end;
+
+    function main(): ExitCode is
+        let f: Foo := Foo();
+
+        borrow ref: &[Foo, Region] := &f do
+            skip;
+        end borrow;
+
+        let {} := f;
+        return ExitSuccess();
+    end;
+end module body.

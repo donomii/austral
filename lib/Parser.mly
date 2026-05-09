@@ -13,6 +13,16 @@ open CstUtil
 open Type
 open Util
 open Span
+open Error
+
+let reserved_region_name (span: span): 'a =
+  adorn_error_with_span span
+    (fun _ ->
+      austral_raise ParseError [
+        Text "A borrow region name cannot use the reserved word ";
+        Code "Region";
+        Text "."
+      ])
 %}
 
 /* Brackets */
@@ -371,8 +381,13 @@ when_stmt:
   ;
 
 borrow_stmt:
-  | BORROW name=identifier COLON borrow_stmt_read_or_write LBRACKET typespec COMMA reg=identifier RBRACKET ASSIGN mode=borrow_stmt_mode orig=identifier DO body=block? END BORROW SEMI
+  | BORROW name=identifier COLON borrow_stmt_read_or_write LBRACKET typespec COMMA reg=region_name RBRACKET ASSIGN mode=borrow_stmt_mode orig=identifier DO body=block? END BORROW SEMI
     { CBorrow { span=from_loc $loc; original=orig; rename=name; region=reg; body=Option.value body ~default:(CBlock (from_loc $loc, [])); mode=mode } }
+  ;
+
+region_name:
+  | identifier { $1 }
+  | UNIVERSE_REGION { reserved_region_name (from_loc $loc) }
   ;
 
 borrow_stmt_read_or_write:

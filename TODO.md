@@ -43,8 +43,8 @@ Sources reviewed:
 
 - [ ] Improve parser edge cases and diagnostics.
   - [x] Empty borrow body should either parse or produce a clear diagnostic.
-  - [ ] Reserved names like `Region` should produce a clear diagnostic.
-  - [ ] Add parser error tests with source spans.
+  - [x] Reserved names like `Region` should produce a clear diagnostic.
+  - [x] Add parser error tests with source spans.
   - Related upstream issues: #585, #584.
 
 ## Capability Security

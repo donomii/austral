@@ -1,0 +1,24 @@
+{
+  "module": null,
+  "kind": "Parse Error",
+  "text": [
+    {
+      "type": "text",
+      "content": "A borrow region name cannot use the reserved word "
+    },
+    { "type": "code", "content": "Region" },
+    { "type": "text", "content": "." }
+  ],
+  "span": {
+    "filename": "test-programs/suites/011-bugs/github-584/Test.aum",
+    "startp": { "line": 8, "column": 27 },
+    "end": { "line": 8, "column": 33 }
+  },
+  "context": [
+    [ 6, "        let f: Foo := Foo();" ],
+    [ 7, "" ],
+    [ 8, "        borrow ref: &[Foo, Region] := &f do" ],
+    [ 9, "            skip;" ],
+    [ 10, "        end borrow;" ]
+  ]
+}
