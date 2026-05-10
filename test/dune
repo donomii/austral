@@ -4,5 +4,6 @@
   UtilTest
   CliUtilTest
   CliParserTest
+  ProjectConfigTest
   CRendererTest)
  (libraries austral_core ounit2))

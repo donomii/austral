@@ -201,6 +201,68 @@ Generated C code should be compiled with:
 $ gcc -fwrapv generated.c -lm
 ```
 
+## Projects
+
+For multi-module programs, you can put the module list and entrypoint in an
+`austral.json` project file and use `austral build`:
+
+```json
+{
+  "name": "hello",
+  "version": "0.1.0",
+  "sourceDirectories": ["src"],
+  "build": {
+    "entrypoint": "Hello:main",
+    "output": "build/hello"
+  },
+  "tests": [
+    {
+      "name": "unit",
+      "sourceDirectories": ["src", "test"],
+      "entrypoint": "Test.Main:main",
+      "output": "build/unit"
+    }
+  ]
+}
+```
+
+`sourceDirectories` are searched recursively for `.aui`/`.aum` pairs. If a
+program needs a specific module order, use `modules` instead:
+
+```json
+{
+  "name": "hello",
+  "modules": [
+    "src/A.aui,src/A.aum",
+    "src/B.aum"
+  ],
+  "build": {
+    "entrypoint": "B:main"
+  }
+}
+```
+
+Build the default target:
+
+```bash
+$ austral build
+```
+
+Build from a different project file or override the target:
+
+```bash
+$ austral build --project=examples/hello-world/austral.json
+$ austral build --target-type=tc
+$ austral build --target-type=c --no-entrypoint --output=build/lib.c
+```
+
+Compile and run all project tests, or one named test:
+
+```bash
+$ austral test
+$ austral test --name=unit
+```
+
 ## Status
 
 1. The bootstrapping compiler, written in OCaml, is implemented. The main

@@ -23,6 +23,9 @@ val read_file_to_string : string -> string
     The first argument is the path, the second the contents. *)
 val write_string_to_file : string -> string -> unit
 
+(** Create the parent directory of a path if it does not already exist. *)
+val ensure_parent_directory : string -> unit
+
 (** Remove all instances of a given character from a string. *)
 val remove_char : string -> char -> string
 

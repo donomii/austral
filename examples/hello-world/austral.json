@@ -1,0 +1,17 @@
+{
+  "name": "hello-world",
+  "version": "0.1.0",
+  "sourceDirectories": ["."],
+  "build": {
+    "entrypoint": "Example.HelloWorld:main",
+    "output": "build/main"
+  },
+  "tests": [
+    {
+      "name": "smoke",
+      "sourceDirectories": ["."],
+      "entrypoint": "Example.HelloWorldTest:main",
+      "output": "build/smoke"
+    }
+  ]
+}

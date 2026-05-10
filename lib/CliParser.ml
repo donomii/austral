@@ -42,6 +42,12 @@ module Errors = struct
       Text " command must specify at least one module."
     ]
 
+  let missing_test_name () =
+    austral_raise CliError [
+      Code "--name";
+      Text " requires a test name."
+    ]
+
   let missing_output () =
     austral_raise CliError [
       Code "--output";
@@ -94,13 +100,40 @@ type error_reporting_mode =
   | ErrorReportJson
 [@@deriving eq]
 
+type build_options =
+  BuildOptions of {
+      project_path: string;
+      target_type: string option;
+      output_path: string option;
+      entrypoint: entrypoint option;
+      no_entrypoint: bool;
+    }
+[@@deriving eq]
+
+type test_options =
+  TestOptions of {
+      project_path: string;
+      test_name: string option;
+    }
+[@@deriving eq]
+
 type cmd =
   | HelpCommand
   | VersionCommand
   | CompileHelp
+  | BuildHelp
+  | TestHelp
   | WholeProgramCompile of {
       modules: mod_source list;
       target: target;
+      error_reporting_mode: error_reporting_mode;
+    }
+  | ProjectBuild of {
+      options: build_options;
+      error_reporting_mode: error_reporting_mode;
+    }
+  | ProjectTest of {
+      options: test_options;
       error_reporting_mode: error_reporting_mode;
     }
 [@@deriving eq]
@@ -139,7 +172,7 @@ let parse_executable_target (arglist: arglist): (arglist * target) =
       | None ->
          Errors.missing_output ())
   | None ->
-     (match pop_bool_flag arglist "--no-entrypoint" with
+     (match pop_bool_flag arglist "no-entrypoint" with
       | Some _ ->
          Errors.no_entrypoint_wrong_target ()
       | None ->
@@ -173,7 +206,7 @@ let parse_target_type (arglist: arglist): (arglist * target) =
   | Some (arglist, target_value) ->
      (* An explicit target type was passed. *)
      (match target_value with
-      | "exe" ->
+      | "exe" | "bin" ->
          (* Build an executable binary. *)
          parse_executable_target arglist
       | "c" ->
@@ -226,6 +259,84 @@ let parse_compile_command (arglist: arglist): (arglist * cmd) =
   | None ->
      parse_compile_command' arglist
 
+let parse_project_path (arglist: arglist): (arglist * string) =
+  match pop_value_flag arglist "project" with
+  | Some (arglist, path) ->
+     (arglist, path)
+  | None ->
+     (arglist, "austral.json")
+
+let parse_build_command' (arglist: arglist): (arglist * cmd) =
+  let (arglist, project_path) = parse_project_path arglist in
+  let (arglist, error_reporting_mode) = parse_error_reporting_mode arglist in
+  let (arglist, target_type) =
+    match pop_value_flag arglist "target-type" with
+    | Some (arglist, target_type) ->
+       (arglist, Some target_type)
+    | None ->
+       (arglist, None)
+  in
+  let (arglist, output_path) =
+    match pop_value_flag arglist "output" with
+    | Some (arglist, output_path) ->
+       (arglist, Some output_path)
+    | None ->
+       (arglist, None)
+  in
+  let (arglist, entrypoint) =
+    match pop_value_flag arglist "entrypoint" with
+    | Some (arglist, entrypoint) ->
+       (arglist, Some (parse_entrypoint entrypoint))
+    | None ->
+       (arglist, None)
+  in
+  let (arglist, no_entrypoint) =
+    match pop_bool_flag arglist "no-entrypoint" with
+    | Some arglist ->
+       (arglist, true)
+    | None ->
+       (arglist, false)
+  in
+  let options = BuildOptions {
+                    project_path;
+                    target_type;
+                    output_path;
+                    entrypoint;
+                    no_entrypoint;
+                  }
+  in
+  (arglist, ProjectBuild { options; error_reporting_mode })
+
+let parse_build_command (arglist: arglist): (arglist * cmd) =
+  match pop_bool_flag arglist "help" with
+  | Some arglist ->
+     (arglist, BuildHelp)
+  | None ->
+     parse_build_command' arglist
+
+let parse_test_command' (arglist: arglist): (arglist * cmd) =
+  let (arglist, project_path) = parse_project_path arglist in
+  let (arglist, error_reporting_mode) = parse_error_reporting_mode arglist in
+  let (arglist, test_name) =
+    match pop_value_flag arglist "name" with
+    | Some (arglist, "") ->
+       let _ = arglist in
+       Errors.missing_test_name ()
+    | Some (arglist, name) ->
+       (arglist, Some name)
+    | None ->
+       (arglist, None)
+  in
+  let options = TestOptions { project_path; test_name } in
+  (arglist, ProjectTest { options; error_reporting_mode })
+
+let parse_test_command (arglist: arglist): (arglist * cmd) =
+  match pop_bool_flag arglist "help" with
+  | Some arglist ->
+     (arglist, TestHelp)
+  | None ->
+     parse_test_command' arglist
+
 let parse (arglist: arglist): cmd =
   let args: arg list = arglist_to_list arglist in
   match args with
@@ -236,6 +347,14 @@ let parse (arglist: arglist): cmd =
   | (PositionalArg "compile")::rest ->
      (* Try parsing the `compile` command. *)
      let (arglist, cmd) = parse_compile_command (arglist_from_list rest) in
+     let _ = check_leftovers arglist in
+     cmd
+  | (PositionalArg "build")::rest ->
+     let (arglist, cmd) = parse_build_command (arglist_from_list rest) in
+     let _ = check_leftovers arglist in
+     cmd
+  | (PositionalArg "test")::rest ->
+     let (arglist, cmd) = parse_test_command (arglist_from_list rest) in
      let _ = check_leftovers arglist in
      cmd
   | _ ->

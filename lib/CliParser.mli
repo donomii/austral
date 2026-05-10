@@ -35,6 +35,25 @@ type error_reporting_mode =
   | ErrorReportPlain
   | ErrorReportJson
 
+(** Options for project builds. *)
+type build_options =
+  BuildOptions of {
+      project_path: string;
+      target_type: string option;
+      output_path: string option;
+      entrypoint: entrypoint option;
+      no_entrypoint: bool;
+    }
+[@@deriving eq]
+
+(** Options for project tests. *)
+type test_options =
+  TestOptions of {
+      project_path: string;
+      test_name: string option;
+    }
+[@@deriving eq]
+
 (** The type of compiler commands. The compiler's CLI arglist is parsed to an
     instance of this type. *)
 type cmd =
@@ -44,6 +63,10 @@ type cmd =
   (** Print the compiler's version. *)
   | CompileHelp
   (** Print usage of the compile command. *)
+  | BuildHelp
+  (** Print usage of the build command. *)
+  | TestHelp
+  (** Print usage of the test command. *)
   | WholeProgramCompile of {
       modules: mod_source list;
       (** The list of modules to compile in order. *)
@@ -53,7 +76,27 @@ type cmd =
       (** Whether to report errors in plain text or JSON. *)
     }
   (** Whole program compilation using the C backend. *)
+  | ProjectBuild of {
+      options: build_options;
+      (** Project build options. *)
+      error_reporting_mode: error_reporting_mode;
+      (** Whether to report errors in plain text or JSON. *)
+    }
+  (** Whole program compilation from an Austral project file. *)
+  | ProjectTest of {
+      options: test_options;
+      (** Project test options. *)
+      error_reporting_mode: error_reporting_mode;
+      (** Whether to report errors in plain text or JSON. *)
+    }
+  (** Compile and run tests from an Austral project file. *)
 [@@deriving eq]
+
+(** Parse one module source argument. *)
+val parse_mod_source : string -> mod_source
+
+(** Parse an entrypoint argument. *)
+val parse_entrypoint : string -> entrypoint
 
 (** Parse an argument list into a compiler command. *)
 val parse : arglist -> cmd
