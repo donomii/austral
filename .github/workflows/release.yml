@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libgmp-dev m4 pkg-config python3
+
+      - name: install ocaml
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.2.1
+
+      - name: build
+        run: |
+          set -eux
+          eval $(opam env)
+          opam install --deps-only --with-test -y .
+          make
+          make test
+          make -C standard
+          ./standard/test_bin
+
+      - name: package
+        id: package
+        run: |
+          set -eux
+          asset="austral-linux-$(uname -m)"
+          cp austral "$asset"
+          shasum -a 256 "$asset" > "$asset.sha256"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - name: upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.package.outputs.asset }}
+            ${{ steps.package.outputs.asset }}.sha256
+
+  macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install ocaml
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.2.1
+
+      - name: build
+        run: |
+          set -eux
+          eval $(opam env)
+          opam install --deps-only --with-test -y .
+          make
+          make test
+          make -C standard
+          ./standard/test_bin
+
+      - name: package
+        id: package
+        run: |
+          set -eux
+          asset="austral-macos-$(uname -m)"
+          cp austral "$asset"
+          shasum -a 256 "$asset" > "$asset.sha256"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - name: upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.package.outputs.asset }}
+            ${{ steps.package.outputs.asset }}.sha256

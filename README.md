@@ -93,9 +93,9 @@ And you're done.
 
 ## Building without Nix
 
-Building the `austral` compiler requires `make` and the `dune` build system for
-OCaml, and a C compiler for building the resulting output. You should install
-OCaml 4.13.0 or above.
+Building the `austral` compiler requires `make`, `opam`, OCaml, Dune, Python 3,
+GMP, and a C compiler for building the resulting output. The supported OCaml
+range is 4.14.x through 5.3.x.
 
 First:
 
@@ -111,12 +111,12 @@ $ sudo apt-get install opam
 $ opam init
 ```
 
-Then, create an opam switch for austral and install dependencies via opam:
+Then, create an opam switch for Austral and install dependencies via opam:
 
 ```bash
-opam switch create austral 4.13.0
+opam switch create austral 5.2.1
 eval $(opam env --switch=austral)
-opam install --deps-only -y .
+opam install --deps-only --with-test -y .
 ```
 
 Finally:
@@ -136,6 +136,9 @@ To build the standard library:
 $ cd standard
 $ make
 ```
+
+See [Supported Platforms](docs/platforms.md) for the current host/target support
+policy and [Releases](docs/releases.md) for binary and Docker image notes.
 
 ## Usage
 

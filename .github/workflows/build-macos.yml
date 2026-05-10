@@ -20,24 +20,23 @@ jobs:
       - name: install ocaml
         uses: ocaml/setup-ocaml@v2
         with:
-          ocaml-compiler: 4.13.0
+          ocaml-compiler: 5.2.1
 
       - name: build
         run: |
-          set -x
+          set -eux
 
-          opam switch create austral 4.13.0
-          eval $(opam env --switch=austral --set-switch)
-          opam install --deps-only -y .
-
+          eval $(opam env)
+          opam install --deps-only --with-test -y .
           make
+          make test
 
-          cd standard
-          make
+          make -C standard
+          ./standard/test_bin
 
       - name: upload compiler binary
         uses: actions/upload-artifact@v4
         with:
           name: austral-macos-bin
           path: austral
-          retention-days: 1
+          retention-days: 14

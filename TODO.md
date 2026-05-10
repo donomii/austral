@@ -99,15 +99,16 @@ Sources reviewed:
 - [ ] Fix opam/dependency installation.
   - [x] Resolve missing `ppxlib = 0.25.0` report.
   - [x] Fill missing opam metadata: maintainer, authors, license.
-  - [ ] Resolve dependency constraints for modern OCaml switches.
+  - [x] Resolve dependency constraints for modern OCaml switches.
   - [ ] Test install on a fresh non-Nix Linux environment.
   - Related upstream issue: #616.
 
 - [ ] Produce usable release artifacts.
-  - [ ] Build Linux binaries that do not depend on Nix store paths.
-  - [ ] Add macOS release binaries.
-  - [ ] Document supported platforms.
-  - [ ] Add checksum/signature publishing.
+  - [x] Build Linux binaries that do not depend on Nix store paths.
+  - [x] Add macOS release binaries.
+  - [x] Document supported platforms.
+  - [x] Add checksum publishing.
+  - [ ] Add signature publishing.
   - Related upstream issue: #565.
 
 - [ ] Decide Windows support level.
@@ -115,8 +116,8 @@ Sources reviewed:
   - [ ] If supported, define the C compiler/runtime story.
   - Related upstream issue: #560.
 
-- [ ] Add a Docker image for the compiler.
-  - [ ] Include compiler, C compiler, standard library, and examples.
+- [x] Add a Docker image for the compiler.
+  - [x] Include compiler, C compiler, standard library, and examples.
   - [ ] Use it in CI and quick-start docs.
 
 ## Standard Library
