@@ -1,9 +1,12 @@
 .git
 _build
 **/build
+**/test_bin
 austral
 calltree.html
 error.html
+examples/**/main
 FAILURES.txt
 result
 *~
+.DS_Store

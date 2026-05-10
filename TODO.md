@@ -100,7 +100,7 @@ Sources reviewed:
   - [x] Resolve missing `ppxlib = 0.25.0` report.
   - [x] Fill missing opam metadata: maintainer, authors, license.
   - [x] Resolve dependency constraints for modern OCaml switches.
-  - [ ] Test install on a fresh non-Nix Linux environment.
+  - [x] Test install on a fresh non-Nix Linux environment.
   - Related upstream issue: #616.
 
 - [ ] Produce usable release artifacts.
@@ -118,7 +118,7 @@ Sources reviewed:
 
 - [x] Add a Docker image for the compiler.
   - [x] Include compiler, C compiler, standard library, and examples.
-  - [ ] Use it in CI and quick-start docs.
+  - [x] Use it in CI and quick-start docs.
 
 ## Standard Library
 

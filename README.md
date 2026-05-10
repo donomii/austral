@@ -140,6 +140,30 @@ $ make
 See [Supported Platforms](docs/platforms.md) for the current host/target support
 policy and [Releases](docs/releases.md) for binary and Docker image notes.
 
+## Docker Quick Start
+
+Build the local compiler image:
+
+```bash
+docker build -t austral:local .
+```
+
+Check the compiler:
+
+```bash
+docker run --rm austral:local --version
+```
+
+Run an example project from the image:
+
+```bash
+docker run --rm \
+  -v "$PWD":/workspace \
+  -w /workspace/examples/hello-world \
+  austral:local \
+  build
+```
+
 ## Usage
 
 Suppose you have a program with modules `A`, `B`, and `C`, in the following

@@ -47,3 +47,13 @@ Run:
 ```bash
 docker run --rm austral:local --version
 ```
+
+Build the bundled hello-world project from the image:
+
+```bash
+docker run --rm \
+  -v "$PWD":/workspace \
+  -w /workspace/examples/hello-world \
+  austral:local \
+  build
+```
