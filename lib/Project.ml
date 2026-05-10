@@ -5,9 +5,14 @@
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 *)
 open CliParser
+open Cst
 open Error
+open Identifier
+open ParserInterface
+open Util
 
 module StringMap = Map.Make(String)
+module StringSet = Set.Make(String)
 
 module Errors = struct
   let invalid_project ~path ~message =
@@ -54,6 +59,21 @@ module Errors = struct
 
   let no_entrypoint_wrong_target ~path =
     invalid_project ~path ~message:"`no-entrypoint` requires target type `c`."
+
+  let duplicate_module_name ~path ~module_name ~first_path ~second_path =
+    invalid_project
+      ~path
+      ~message:("Module `" ^ module_name ^ "` is defined more than once: `" ^ first_path ^ "` and `" ^ second_path ^ "`.")
+
+  let module_name_mismatch ~path ~inter_path ~body_path ~inter_name ~body_name =
+    invalid_project
+      ~path
+      ~message:("Interface `" ^ inter_path ^ "` declares module `" ^ inter_name ^ "`, but body `" ^ body_path ^ "` declares module `" ^ body_name ^ "`.")
+
+  let import_cycle ~path ~modules =
+    invalid_project
+      ~path
+      ~message:("Import cycle among project modules: " ^ (String.concat ", " modules))
 end
 
 type source_config =
@@ -102,6 +122,13 @@ type test_spec =
       modules: mod_source list;
       output_path: string;
       entrypoint: entrypoint;
+    }
+
+type module_info =
+  ModuleInfo of {
+      name: module_name;
+      source: mod_source;
+      imports: module_name list;
     }
 
 let assoc_opt (field: string) (json: Yojson.Basic.t): Yojson.Basic.t option =
@@ -291,6 +318,104 @@ let module_source_of_pair ~(path: string) (_stem: string) (pair: module_pair): m
   | None, None ->
      internal_err "Empty module pair in project discovery."
 
+let imported_module_names (imports: concrete_import_list list): module_name list =
+  List.map (fun (ConcreteImportList (name, _)) -> name) imports
+
+let module_source_path (source: mod_source): string =
+  match source with
+  | ModuleSource { body_path; _ } ->
+     body_path
+  | ModuleBodySource { body_path } ->
+     body_path
+
+let parse_module_info ~(path: string) (source: mod_source): module_info =
+  match source with
+  | ModuleSource { inter_path; body_path } ->
+     let inter = parse_module_int (read_file_to_string inter_path) inter_path in
+     let body = parse_module_body (read_file_to_string body_path) body_path in
+     let (ConcreteModuleInterface (inter_name, _, inter_imports, _)) = inter in
+     let (ConcreteModuleBody (body_name, _, _, body_imports, _)) = body in
+     if equal_module_name inter_name body_name then
+       ModuleInfo {
+           name = body_name;
+           source;
+           imports = (imported_module_names inter_imports) @ (imported_module_names body_imports);
+         }
+     else
+       Errors.module_name_mismatch
+         ~path
+         ~inter_path
+         ~body_path
+         ~inter_name:(mod_name_string inter_name)
+         ~body_name:(mod_name_string body_name)
+  | ModuleBodySource { body_path } ->
+     let body = parse_module_body (read_file_to_string body_path) body_path in
+     let (ConcreteModuleBody (name, _, _, imports, _)) = body in
+     ModuleInfo {
+         name;
+         source;
+         imports = imported_module_names imports;
+       }
+
+let module_info_name_string (ModuleInfo { name; _ }): string =
+  mod_name_string name
+
+let module_info_source (ModuleInfo { source; _ }): mod_source =
+  source
+
+let module_info_import_names (ModuleInfo { imports; _ }): string list =
+  List.map mod_name_string imports
+
+let checked_module_map ~(path: string) (infos: module_info list): module_info StringMap.t =
+  List.fold_left
+    (fun map info ->
+      let name = module_info_name_string info in
+      match StringMap.find_opt name map with
+      | Some previous ->
+         Errors.duplicate_module_name
+           ~path
+           ~module_name:name
+           ~first_path:(module_source_path (module_info_source previous))
+           ~second_path:(module_source_path (module_info_source info))
+      | None ->
+         StringMap.add name info map)
+    StringMap.empty
+    infos
+
+let sort_module_infos ~(path: string) (infos: module_info list): module_info list =
+  let module_map = checked_module_map ~path infos in
+  let can_emit emitted info =
+    List.for_all
+      (fun import_name ->
+        (not (StringMap.mem import_name module_map)) || (StringSet.mem import_name emitted))
+      (module_info_import_names info)
+  in
+  let rec loop emitted remaining sorted =
+    match remaining with
+    | [] ->
+       sorted
+    | _ ->
+       let (ready, blocked) = List.partition (can_emit emitted) remaining in
+       match ready with
+       | [] ->
+          Errors.import_cycle ~path ~modules:(List.map module_info_name_string remaining)
+       | _ ->
+          let emitted =
+            List.fold_left
+              (fun emitted info -> StringSet.add (module_info_name_string info) emitted)
+              emitted
+              ready
+          in
+          loop emitted blocked (sorted @ ready)
+  in
+  loop StringSet.empty infos []
+
+let sort_module_sources ~(path: string) (sources: mod_source list): mod_source list =
+  sources
+  |> List.map (parse_module_info ~path)
+  |> sort_module_infos ~path
+  |> List.map module_info_source
+
 let discover_modules ~(path: string) (source_directories: string list): mod_source list =
   let files =
     List.concat
@@ -305,6 +430,7 @@ let discover_modules ~(path: string) (source_directories: string list): mod_sour
   let pairs = List.fold_left add_module_file StringMap.empty files in
   StringMap.bindings pairs
   |> List.map (fun (stem, pair) -> module_source_of_pair ~path stem pair)
+  |> sort_module_sources ~path
 
 let modules_from_config ~(path: string) ~(base_dir: string) (source_directories: string list) (modules: string list): mod_source list =
   let result =

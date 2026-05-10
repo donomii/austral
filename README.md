@@ -253,8 +253,10 @@ For multi-module programs, you can put the module list and entrypoint in an
 }
 ```
 
-`sourceDirectories` are searched recursively for `.aui`/`.aum` pairs. If a
-program needs a specific module order, use `modules` instead:
+`sourceDirectories` are searched recursively for `.aui`/`.aum` pairs. Discovered
+modules are ordered from their `import` declarations so imported project modules
+are compiled before importers. If a program needs a fully manual order, use
+`modules` instead:
 
 ```json
 {
