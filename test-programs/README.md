@@ -28,3 +28,23 @@ Each test directory contains some Austral source files (in the simplest cases, `
 Suite and test directories are numbered so that tests run in a predictable order.
 
 The `runner.py` script runs the tests.
+
+## Generated C Compiler
+
+The runner compiles generated C before running successful end-to-end tests.
+By default it uses `gcc` with the project's required generated-C flags.
+These environment variables can be used to test the generated C against other
+toolchains:
+
+1. `AUSTRAL_CC`: C compiler executable. Defaults to `gcc`.
+
+2. `AUSTRAL_CFLAGS`: Extra C compiler flags, parsed like shell arguments.
+
+3. `AUSTRAL_LDFLAGS`: Extra linker flags, parsed like shell arguments.
+
+For example:
+
+```sh
+AUSTRAL_CC=clang python3 test-programs/runner.py
+AUSTRAL_CC=gcc AUSTRAL_CFLAGS="-Wall -Wextra" python3 test-programs/runner.py
+```

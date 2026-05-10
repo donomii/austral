@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 # Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE file for details.
 #
@@ -7,6 +9,7 @@
 This script runs the end-to-end tests of the compiler.
 """
 import os
+import shlex
 import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor, Future
@@ -17,6 +20,15 @@ from concurrent.futures import ProcessPoolExecutor, Future
 
 # The `test-programs/` directory.
 DIR: str = "test-programs/"
+
+# C compiler settings for generated-C verification.
+CC: str = os.environ.get("AUSTRAL_CC", "gcc")
+DEFAULT_CFLAGS: list[str] = [
+    "-fwrapv",  # Modular arithmetic semantics.
+    "-Wno-builtin-declaration-mismatch",
+]
+EXTRA_CFLAGS: list[str] = shlex.split(os.environ.get("AUSTRAL_CFLAGS", ""))
+EXTRA_LDFLAGS: list[str] = shlex.split(os.environ.get("AUSTRAL_LDFLAGS", ""))
 
 
 #
@@ -219,7 +231,7 @@ def report_fail_details(result: TestFail, stream):
     print("C File:", result.test.c_path, file=stream)
     print("Bin File:", result.test.bin_path, file=stream)
     print("Austral command:", try_join(result.austral_cmd), file=stream)
-    print("GCC command:", try_join(result.cc_cmd), file=stream)
+    print("C compiler command:", try_join(result.cc_cmd), file=stream)
     print("Reason:", result.reason, file=stream)
     for key, value in result.outputs:
         print(key, file=stream)
@@ -398,6 +410,19 @@ def _test_cmd(test: Test) -> list[str]:
         ]
 
 
+def _cc_cmd(test: Test) -> list[str]:
+    return [
+        CC,
+        *DEFAULT_CFLAGS,
+        *EXTRA_CFLAGS,
+        test.c_path,
+        "-lm",  # Math stdlib.
+        *EXTRA_LDFLAGS,
+        "-o",
+        test.bin_path,
+    ]
+
+
 def _run_success_test(test: TestSuccess) -> TestResult:
     # Find the source files.
     expected_output = test.expected_output
@@ -422,34 +447,26 @@ def _run_success_test(test: TestSuccess) -> TestResult:
                 ("AUSTRAL STDERR", result.stderr.decode("utf-8")),
             ],
         )
-    # The compiler executed successfully. Compile the program with GCC.
-    gcc_cmd: list = [
-        "gcc",
-        "-fwrapv",  # Modular arithmetic semantics
-        "-Wno-builtin-declaration-mismatch",
-        test.c_path,
-        "-lm",  # Math stdlib,
-        "-o",
-        test.bin_path,
-    ]
-    # Call GCC.
+    # The compiler executed successfully. Compile the generated C.
+    cc_cmd: list[str] = _cc_cmd(test)
+    # Call the C compiler.
     result: subprocess.CompletedProcess = subprocess.run(
-        gcc_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        cc_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     code: int = result.returncode
     if code != 0:
-        # GCC compilation failed.
+        # C compilation failed.
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
-            reason="GCC compilation failed, but was expected to succeed.",
+            cc_cmd=cc_cmd,
+            reason="C compilation failed, but was expected to succeed.",
             outputs=[
-                ("GCC STDOUT", result.stdout.decode("utf-8")),
-                ("GCC STDERR", result.stderr.decode("utf-8")),
+                ("CC STDOUT", result.stdout.decode("utf-8")),
+                ("CC STDERR", result.stderr.decode("utf-8")),
             ],
         )
-    # GCC compilation succeeded. Run the program.
+    # C compilation succeeded. Run the program.
     result: subprocess.CompletedProcess = subprocess.run(
         [test.bin_path],
         input=_program_stdin(test),
@@ -462,7 +479,7 @@ def _run_success_test(test: TestSuccess) -> TestResult:
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
+            cc_cmd=cc_cmd,
             reason="Program terminated abnormally.",
             outputs=[
                 ("STDOUT", result.stdout.decode("utf-8")),
@@ -481,7 +498,7 @@ def _run_success_test(test: TestSuccess) -> TestResult:
             return TestFail(
                 test=test,
                 austral_cmd=compile_cmd,
-                cc_cmd=gcc_cmd,
+                cc_cmd=cc_cmd,
                 reason="Program produced the wrong stdout.",
                 outputs=[
                     ("ACTUAL STDOUT", stdout),
@@ -493,7 +510,7 @@ def _run_success_test(test: TestSuccess) -> TestResult:
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
+            cc_cmd=cc_cmd,
             reason="Program produced stdout, which we did not expect.",
             outputs=[
                 ("STDOUT", stdout),
@@ -504,7 +521,7 @@ def _run_success_test(test: TestSuccess) -> TestResult:
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
+            cc_cmd=cc_cmd,
             reason="Program did not produce stdout, but we expected it.",
             outputs=[
                 ("EXPECTED OUTPUT", expected_output),
@@ -598,34 +615,26 @@ def _run_program_failure_test(test: TestProgramFailure) -> TestResult:
                 ("AUSTRAL STDERR", result.stderr.decode("utf-8")),
             ],
         )
-    # The compiler executed successfully. Compile the program with GCC.
-    gcc_cmd: list[str] = [
-        "gcc",
-        "-fwrapv",  # Modular arithmetic semantics
-        "-Wno-builtin-declaration-mismatch",
-        test.c_path,
-        "-lm",  # Math stdlib,
-        "-o",
-        test.bin_path,
-    ]
-    # Call GCC.
+    # The compiler executed successfully. Compile the generated C.
+    cc_cmd: list[str] = _cc_cmd(test)
+    # Call the C compiler.
     result: subprocess.CompletedProcess = subprocess.run(
-        gcc_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        cc_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     code: int = result.returncode
     if code != 0:
-        # GCC compilation failed.
+        # C compilation failed.
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
-            reason="GCC compilation failed, but was expected to succeed.",
+            cc_cmd=cc_cmd,
+            reason="C compilation failed, but was expected to succeed.",
             outputs=[
-                ("GCC STDOUT", result.stdout.decode("utf-8")),
-                ("GCC STDERR", result.stderr.decode("utf-8")),
+                ("CC STDOUT", result.stdout.decode("utf-8")),
+                ("CC STDERR", result.stderr.decode("utf-8")),
             ],
         )
-    # GCC compilation succeeded. Run the program.
+    # C compilation succeeded. Run the program.
     result: subprocess.CompletedProcess = subprocess.run(
         [test.bin_path],
         input=_program_stdin(test),
@@ -638,7 +647,7 @@ def _run_program_failure_test(test: TestProgramFailure) -> TestResult:
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
+            cc_cmd=cc_cmd,
             reason="Program terminated successfully, but we expected a failure.",
             outputs=[
                 ("STDOUT", result.stdout.decode("utf-8")),
@@ -657,7 +666,7 @@ def _run_program_failure_test(test: TestProgramFailure) -> TestResult:
             return TestFail(
                 test=test,
                 austral_cmd=compile_cmd,
-                cc_cmd=gcc_cmd,
+                cc_cmd=cc_cmd,
                 reason="Program produced stderr, but it was not what we expected",
                 outputs=[
                     ("ACTUAL STDERR", stderr),
@@ -669,7 +678,7 @@ def _run_program_failure_test(test: TestProgramFailure) -> TestResult:
         return TestFail(
             test=test,
             austral_cmd=compile_cmd,
-            cc_cmd=gcc_cmd,
+            cc_cmd=cc_cmd,
             reason="Program did not produce stderr, but we expected stderr",
             outputs=[
                 ("EXPECTED STDERR", expected_stderr),

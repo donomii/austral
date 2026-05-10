@@ -74,7 +74,7 @@ jobs:
       - name: install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libgmp-dev m4 pkg-config python3
+          sudo apt-get install -y build-essential clang gcc libgmp-dev m4 pkg-config python3
 
       - name: install ocaml
         uses: ocaml/setup-ocaml@v2
@@ -96,10 +96,15 @@ jobs:
           eval $(opam env)
           make test
 
-      - name: end-to-end tests
+      - name: end-to-end tests with gcc
         run: |
           eval $(opam env)
-          python3 test-programs/runner.py
+          AUSTRAL_CC=gcc python3 test-programs/runner.py
+
+      - name: end-to-end tests with clang
+        run: |
+          eval $(opam env)
+          AUSTRAL_CC=clang python3 test-programs/runner.py
 
       - name: examples
         run: |
