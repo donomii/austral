@@ -185,20 +185,20 @@ Sources reviewed:
 
 ## Build Tooling And Packages
 
-- [ ] Add a basic `austral build` workflow.
-  - [ ] Discover modules from a project file.
-  - [ ] Track interface/body pairs.
-  - [ ] Invoke the C compiler consistently.
-  - [ ] Support executable and library outputs.
+- [x] Add a basic `austral build` workflow.
+  - [x] Discover modules from a project file.
+  - [x] Track interface/body pairs.
+  - [x] Invoke the C compiler consistently.
+  - [x] Support executable and library outputs.
 
 - [ ] Add `austral test`.
-  - [ ] Compile and run test modules.
+  - [x] Compile and run test modules.
   - [ ] Support compile-fail tests.
   - [ ] Support generated-C compile tests.
 
 - [ ] Add package/dependency metadata.
-  - [ ] Package name/version.
-  - [ ] Module roots.
+  - [x] Package name/version.
+  - [x] Module roots.
   - [ ] Dependencies.
   - [ ] Capability declarations or audit metadata, if useful.
 

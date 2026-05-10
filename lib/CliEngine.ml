@@ -11,6 +11,29 @@ open Util
 open Error
 open HtmlError
 open SourceContext
+open Project
+
+module Errors = struct
+  let project_test_failed ~name ~command ~exit_code ~stdout ~stderr =
+    austral_raise CliError [
+      Text "Project test failed.";
+      Break;
+      Text "Test: ";
+      Code name;
+      Break;
+      Text "Command: ";
+      Code command;
+      Break;
+      Text "Exit code: ";
+      Text (string_of_int exit_code);
+      Break;
+      Text "Standard output:\n";
+      Text stdout;
+      Break;
+      Text "Standard error:\n";
+      Text stderr
+    ]
+end
 
 (* Source map stuff *)
 
@@ -77,8 +100,16 @@ let rec exec (cmd: cmd): unit =
      print_version ()
   | CompileHelp ->
      print_compile_usage ()
+  | BuildHelp ->
+     print_build_usage ()
+  | TestHelp ->
+     print_test_usage ()
   | WholeProgramCompile { modules; target; error_reporting_mode } ->
      exec_compile modules target error_reporting_mode
+  | ProjectBuild { options; error_reporting_mode } ->
+     exec_project_build options error_reporting_mode
+  | ProjectTest { options; error_reporting_mode } ->
+     exec_project_test options error_reporting_mode
 
 and print_usage _: unit =
   print_endline ("austral " ^ version_string);
@@ -91,7 +122,9 @@ and print_usage _: unit =
   print_endline "    --version  Print the compiler's version.";
   print_endline "";
   print_endline "Commands:";
-  print_endline "    compile    Compile modules."
+  print_endline "    compile    Compile modules.";
+  print_endline "    build      Build a project from austral.json.";
+  print_endline "    test       Compile and run project tests from austral.json."
 
 and print_version _: unit =
   print_endline version_string
@@ -104,7 +137,7 @@ and print_compile_usage _: unit =
   print_endline "";
   print_endline "Options:";
   print_endline "    --help          Print this text.";
-  print_endline "    --target-type   One of `bin`, `tc`, `c`. Default is `bin`.";
+  print_endline "    --target-type   One of `exe`, `bin`, `tc`, `c`. Default is `exe`.";
   print_endline "    --output        Path to the output file.";
   print_endline "    --entrypoint    The name of the entrypoint function, in the";
   print_endline "                    format `<module name>:<function name>`.";
@@ -115,6 +148,57 @@ and print_compile_usage _: unit =
   print_endline "    module    Of the form 'file.aui,file.aum' for modules with";
   print_endline "              both an interface and body file, or 'file.aum' for";
   print_endline "              modules with only a body."
+
+and print_build_usage _: unit =
+  print_endline "austral build";
+  print_endline "";
+  print_endline "Usage:";
+  print_endline "    austral build [options]";
+  print_endline "";
+  print_endline "Options:";
+  print_endline "    --help          Print this text.";
+  print_endline "    --project       Path to the project file. Default is austral.json.";
+  print_endline "    --target-type   One of `exe`, `bin`, `tc`, `c`.";
+  print_endline "    --output        Override the output path.";
+  print_endline "    --entrypoint    Override the entrypoint, in the format";
+  print_endline "                    `<module name>:<function name>`.";
+  print_endline "    --no-entrypoint Compile a C library without an entrypoint.";
+  print_endline "    --error-format  One of `plain`, `json`. Default is `plain`."
+
+and print_test_usage _: unit =
+  print_endline "austral test";
+  print_endline "";
+  print_endline "Usage:";
+  print_endline "    austral test [options]";
+  print_endline "";
+  print_endline "Options:";
+  print_endline "    --help          Print this text.";
+  print_endline "    --project       Path to the project file. Default is austral.json.";
+  print_endline "    --name          Compile and run only the named test.";
+  print_endline "    --error-format  One of `plain`, `json`. Default is `plain`."
+
+and exec_project_build (options: build_options) (error_reporting_mode: error_reporting_mode): unit =
+  let (BuildOptions { project_path; _ }) = options in
+  let project = Project.load project_path in
+  let (BuildSpec { modules; target }) = Project.build_spec project options in
+  exec_compile modules target error_reporting_mode
+
+and exec_project_test (options: test_options) (error_reporting_mode: error_reporting_mode): unit =
+  let (TestOptions { project_path; _ }) = options in
+  let project = Project.load project_path in
+  let specs = Project.test_specs project options in
+  List.iter (fun spec -> exec_test_spec spec error_reporting_mode) specs
+
+and exec_test_spec (spec: test_spec) (error_reporting_mode: error_reporting_mode): unit =
+  let (TestSpec { test_name; modules; output_path; entrypoint }) = spec in
+  Printf.printf "Running %s\n%!" test_name;
+  exec_compile modules (Executable { bin_path = output_path; entrypoint }) error_reporting_mode;
+  let output = run_command (Filename.quote output_path) in
+  let (CommandOutput { command; code; stdout; stderr }) = output in
+  if code <> 0 then
+    Errors.project_test_failed ~name:test_name ~command ~exit_code:code ~stdout ~stderr
+  else
+    ()
 
 and exec_compile (modules: mod_source list) (target: target) (error_reporting_mode: error_reporting_mode): unit =
   (* Parse source files *)
@@ -205,4 +289,5 @@ and exec_compile_to_c (mods: module_source list) (output_path: string) (entrypoi
        compiler
   in
   (* Write the output to the given file. *)
+  ensure_parent_directory output_path;
   write_string_to_file output_path (compiler_code compiler)

@@ -48,6 +48,29 @@ module Errors = struct
         Text "Failed to write to file ";
         Code path
       ]
+
+  let mkdir_error ~path ~error = match error with
+  | Unix_error (_, _, msg) ->
+      austral_raise CliError [
+        Text "Failed to create directory ";
+        Code path;
+        Text ": ";
+        Break;
+        Text msg
+      ]
+  | Sys_error msg ->
+      austral_raise CliError [
+        Text "Failed to create directory ";
+        Code path;
+        Text ": ";
+        Break;
+        Text msg
+      ]
+  | _ ->
+      austral_raise CliError [
+        Text "Failed to create directory ";
+        Code path
+      ]
 end
 
 let string_explode (s: string): char list =
@@ -81,6 +104,24 @@ let write_string_to_file (path: string) (contents: string): unit =
   with error ->
     close_out_noerr stream;
     Errors.write_error ~path ~error
+
+let rec mkdir_p (path: string): unit =
+  if path = "" || path = "." || path = "/" then
+    ()
+  else if Sys.file_exists path then
+    if (Unix.stat path).st_kind = S_DIR then
+      ()
+    else
+      Errors.mkdir_error ~path ~error:(Sys_error "Path exists and is not a directory")
+  else
+    let parent = Filename.dirname path in
+    mkdir_p parent;
+    try Unix.mkdir path 0o755 with
+    | Unix.Unix_error (Unix.EEXIST, _, _) -> ()
+    | error -> Errors.mkdir_error ~path ~error
+
+let ensure_parent_directory (path: string): unit =
+  mkdir_p (Filename.dirname path)
 
 let remove_char (s: string) (c: char)  =
   string_implode (List.filter (fun c' -> c <> c') (string_explode s))
@@ -200,7 +241,8 @@ let run_command (command: string): command_output =
     }
 
 let compile_c_code (source_path: string) (output_path: string): command_output =
-  let cmd = "cc " ^ source_path ^ " -fwrapv -lm -o " ^ output_path in
+  ensure_parent_directory output_path;
+  let cmd = "cc " ^ (Filename.quote source_path) ^ " -fwrapv -lm -o " ^ (Filename.quote output_path) in
   let o = run_command cmd in
   let (CommandOutput { command; code; stdout; stderr }) = o in
   if code <> 0 then
