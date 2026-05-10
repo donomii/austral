@@ -59,3 +59,82 @@ jobs:
 
       - name: assert executable does not exist
         run: test ! -f austral
+
+  build-and-test-linux-opam:
+    strategy:
+      fail-fast: true
+
+    runs-on:
+      - ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libgmp-dev m4 pkg-config python3
+
+      - name: install ocaml
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.2.1
+
+      - name: install dependencies
+        run: |
+          eval $(opam env)
+          opam install --deps-only --with-test -y .
+
+      - name: make
+        run: |
+          eval $(opam env)
+          make
+
+      - name: make test
+        run: |
+          eval $(opam env)
+          make test
+
+      - name: end-to-end tests
+        run: |
+          eval $(opam env)
+          python3 test-programs/runner.py
+
+      - name: examples
+        run: |
+          eval $(opam env)
+          bash run-examples.sh
+
+      - name: build the stdlib
+        run: |
+          eval $(opam env)
+          make -C standard clean
+          make -C standard
+
+      - name: test the stdlib
+        run: ./standard/test_bin
+
+  build-docker-image:
+    strategy:
+      fail-fast: true
+
+    runs-on:
+      - ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: austral:ci
+
+      - name: run compiler
+        run: docker run --rm austral:ci --version
