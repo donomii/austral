@@ -84,7 +84,7 @@ Sources reviewed:
   - Related upstream issue: #563.
 
 - [ ] Add generated-C verification to CI.
-  - [ ] Compile representative programs with Clang and GCC.
+  - [x] Compile representative programs with Clang and GCC.
   - [ ] Run generated binaries on Linux and macOS.
   - [ ] Add sanitizer runs for generated C where possible.
   - [ ] Treat C compiler warnings in the prelude as bugs.
