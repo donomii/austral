@@ -1,179 +1,271 @@
-pragma Unsafe_Module;
-
-import Austral.Memory (
-    Address
+import Standard.OS.Environment (
+    getLiteral
+);
+import Standard.OS.FileSystem (
+    DirectoryList,
+    readFile,
+    writeFile as fsWriteFile,
+    appendFile,
+    pathJoinLiteral
+);
+import Standard.OS.Process (
+    CommandResult,
+    run,
+    exitCode,
+    stdout,
+    stderr,
+    destroyCommandResult
+);
+import Standard.String (
+    String,
+    makeEmpty,
+    fromLiteral,
+    destroyString,
+    length,
+    nthByte,
+    getSpan,
+    isEmpty,
+    equals,
+    startsWithLiteral,
+    strip,
+    trimLines,
+    replaceAll
+);
+import Standard.StringBuilder (
+    StringBuilder,
+    makeStringBuilder,
+    writeByte,
+    writeSpan,
+    writeString,
+    finalize
 );
 
 module body TestPrograms.Runner.Support is
-    function nullText(): Address[Nat8] is
-        return @embed(Address[Nat8], "NULL");
+    function emptyString(): String is
+        return makeEmpty();
     end;
 
-    function textFromSpan(value: Span[Nat8, Static]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_text_from_bytes(($1).data, ($1).size)", value);
-    end;
-
-    function textDestroy(text: Address[Nat8]): Unit is
-        let code: Int32 := @embed(Int32, "tr_text_free($1)", text);
-        return nil;
-    end;
-
-    function textIsNull(text: Address[Nat8]): Bool is
-        return @embed(Bool, "tr_text_is_null($1)", text);
-    end;
-
-    function textIsEmpty(text: Address[Nat8]): Bool is
-        return @embed(Bool, "tr_text_is_empty($1)", text);
-    end;
-
-    function textEquals(left: Address[Nat8], right: Address[Nat8]): Bool is
-        return @embed(Bool, "tr_text_equals($1, $2)", left, right);
-    end;
-
-    function textContains(text: Address[Nat8], pattern: Address[Nat8]): Bool is
-        return @embed(Bool, "tr_text_contains($1, $2)", text, pattern);
-    end;
-
-    function textStrip(text: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_text_strip($1)", text);
-    end;
-
-    function textTrimLines(text: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_text_trim_lines($1)", text);
+    function argumentToString(index: Index): String is
+        return fromLiteral(nthArgument(index));
     end;
 
     function argumentEquals(index: Index, value: Span[Nat8, Static]): Bool is
-        let arg: Span[Nat8, Static] := nthArgument(index);
-        return @embed(Bool, "tr_bytes_equal(($1).data, ($1).size, ($2).data, ($2).size)", arg, value);
+        let arg: String := argumentToString(index);
+        let expected: String := fromLiteral(value);
+        let result: Bool := equals(&arg, &expected);
+        destroyString(arg);
+        destroyString(expected);
+        return result;
     end;
 
     function argumentIsFlag(index: Index): Bool is
-        let arg: Span[Nat8, Static] := nthArgument(index);
-        return @embed(Bool, "tr_bytes_starts_with(($1).data, ($1).size, (const unsigned char*)\"--\", 2)", arg);
+        let arg: String := argumentToString(index);
+        let result: Bool := startsWithLiteral(&arg, "--");
+        destroyString(arg);
+        return result;
     end;
 
-    function listDirectories(path: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_list_directories($1)", path);
-    end;
-
-    function dirListLength(list: Address[Nat8]): Index is
-        return @embed(Index, "tr_dir_list_length($1)", list);
-    end;
-
-    function dirListGet(list: Address[Nat8], index: Index): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_dir_list_get($1, $2)", list, index);
-    end;
-
-    function dirListDestroy(list: Address[Nat8]): Unit is
-        let code: Int32 := @embed(Int32, "tr_dir_list_free($1)", list);
+    function destroyOptionalString(value: Option[String]): Unit is
+        case value of
+            when Some(value as text: String) do
+                destroyString(text);
+            when None do
+                skip;
+        end case;
         return nil;
     end;
 
-    function pathJoin(parent: Address[Nat8], child: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_path_join($1, $2)", parent, child);
-    end;
-
-    function pathJoinLiteral(parent: Address[Nat8], child: Span[Nat8, Static]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_path_join_bytes($1, ($2).data, ($2).size)", parent, child);
-    end;
-
-    function tempCPath(suite: Address[Nat8], test: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_temp_path($1, $2, (const unsigned char*)\".c\", 2)", suite, test);
-    end;
-
-    function tempBinPath(suite: Address[Nat8], test: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_temp_path($1, $2, (const unsigned char*)\".bin\", 4)", suite, test);
-    end;
-
-    function readFileTrim(path: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_read_file_trim($1)", path);
-    end;
-
-    function readFileRaw(path: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_read_file_raw($1)", path);
-    end;
-
-    function writeFile(path: Address[Nat8], contents: Address[Nat8]): Bool is
-        return @embed(Bool, "tr_write_file($1, $2)", path, contents);
-    end;
-
-    function defaultCompileCommand(testDir: Address[Nat8], cPath: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_default_compile_command($1, $2)", testDir, cPath);
-    end;
-
-    function cliCompileCommand(cli: Address[Nat8], testDir: Address[Nat8], cPath: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_cli_compile_command($1, $2, $3)", cli, testDir, cPath);
-    end;
-
-    function cCompilerCommand(cPath: Address[Nat8], binPath: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_c_compiler_command($1, $2)", cPath, binPath);
-    end;
-
-    function binaryCommand(binPath: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_binary_command($1)", binPath);
-    end;
-
-    function runCommand(command: Address[Nat8], stdin: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_run_command($1, $2)", command, stdin);
-    end;
-
-    function commandExitCode(result: Address[Nat8]): Int32 is
-        return @embed(Int32, "tr_command_exit_code($1)", result);
-    end;
-
-    function commandStdout(result: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_command_stdout($1)", result);
-    end;
-
-    function commandStderr(result: Address[Nat8]): Address[Nat8] is
-        return @embed(Address[Nat8], "tr_command_stderr($1)", result);
-    end;
-
-    function commandDestroy(result: Address[Nat8]): Unit is
-        let code: Int32 := @embed(Int32, "tr_command_free($1)", result);
+    generic [R: Region]
+    function printString(value: &[String, R]): Unit is
+        let size: Index := length(value);
+        if size > 0 then
+            let bytes: Span[Nat8, R] := getSpan(value, 0, size - 1);
+            print(bytes);
+        end if;
         return nil;
     end;
 
-    function printResult(suite: Address[Nat8], test: Address[Nat8], passed: Bool): Unit is
-        let code: Int32 := @embed(Int32, "tr_print_result($1, $2, $3)", suite, test, passed);
+    generic [R: Region, S: Region]
+    function printResult(suite: &[String, R], test: &[String, S], passed: Bool): Unit is
+        printString(suite);
+        print("  ");
+        printString(test);
+        if passed then
+            printLn("  PASS");
+        else
+            printLn("  FAIL");
+        end if;
         return nil;
+    end;
+
+    generic [R: Region, S: Region]
+    function tempPath(suite: &[String, R], test: &[String, S], suffix: Span[Nat8, Static]): String is
+        var builder: StringBuilder := makeStringBuilder();
+        writeSpan(&!builder, "/tmp/austral_e2e_");
+        writeString(&!builder, suite);
+        writeByte(&!builder, '_');
+        writeString(&!builder, test);
+        writeSpan(&!builder, suffix);
+        return finalize(builder);
+    end;
+
+    generic [R: Region, S: Region]
+    function tempCPath(suite: &[String, R], test: &[String, S]): String is
+        return tempPath(suite, test, ".c");
+    end;
+
+    generic [R: Region, S: Region]
+    function tempBinPath(suite: &[String, R], test: &[String, S]): String is
+        return tempPath(suite, test, ".bin");
+    end;
+
+    generic [R: Region]
+    function readFileTrim(path: &[String, R]): Option[String] is
+        case readFile(path) of
+            when Some(value as raw: String) do
+                let trimmed: String := strip(&raw);
+                destroyString(raw);
+                return Some(value => trimmed);
+            when None do
+                return None();
+        end case;
+    end;
+
+    generic [R: Region, S: Region]
+    function writeFile(path: &[String, R], contents: &[String, S]): Bool is
+        return fsWriteFile(path, contents);
+    end;
+
+    generic [R: Region]
+    function shellQuote(value: &[String, R]): String is
+        var builder: StringBuilder := makeStringBuilder();
+        writeByte(&!builder, 39 : Nat8);
+        let size: Index := length(value);
+        if size > 0 then
+            for i from 0 to size - 1 do
+                let byte: Nat8 := nthByte(value, i);
+                if byte = (39 : Nat8) then
+                    writeSpan(&!builder, "'\\''");
+                else
+                    writeByte(&!builder, byte);
+                end if;
+            end for;
+        end if;
+        writeByte(&!builder, 39 : Nat8);
+        return finalize(builder);
+    end;
+
+    generic [R: Region, S: Region]
+    function defaultCompileCommand(testDir: &[String, R], cPath: &[String, S]): String is
+        let bodyPath: String := pathJoinLiteral(testDir, "Test.aum");
+        let quotedBody: String := shellQuote(&bodyPath);
+        let quotedC: String := shellQuote(cPath);
+        var builder: StringBuilder := makeStringBuilder();
+        writeSpan(&!builder, "./austral compile ");
+        writeString(&!builder, &quotedBody);
+        writeSpan(&!builder, " --entrypoint=Test:main --target-type=c --output=");
+        writeString(&!builder, &quotedC);
+        writeSpan(&!builder, " --error-format=json");
+        let command: String := finalize(builder);
+        destroyString(bodyPath);
+        destroyString(quotedBody);
+        destroyString(quotedC);
+        return command;
+    end;
+
+    generic [R: Region, S: Region, T: Region]
+    function cliCompileCommand(cli: &[String, R], testDir: &[String, S], cPath: &[String, T]): String is
+        let dirNeedle: String := fromLiteral("$DIR");
+        let cNeedle: String := fromLiteral("$C_PATH");
+        let first: String := replaceAll(cli, &dirNeedle, testDir);
+        let second: String := replaceAll(&first, &cNeedle, cPath);
+        destroyString(dirNeedle);
+        destroyString(cNeedle);
+        destroyString(first);
+        return second;
+    end;
+
+    function envOrDefault(name: Span[Nat8, Static], fallback: Span[Nat8, Static], emptyIsMissing: Bool): String is
+        case getLiteral(name) of
+            when Some(value as actual: String) do
+                if emptyIsMissing and isEmpty(&actual) then
+                    destroyString(actual);
+                    return fromLiteral(fallback);
+                else
+                    return actual;
+                end if;
+            when None do
+                return fromLiteral(fallback);
+        end case;
+    end;
+
+    generic [R: Region, S: Region]
+    function cCompilerCommand(cPath: &[String, R], binPath: &[String, S]): String is
+        let cc: String := envOrDefault("AUSTRAL_CC", "gcc", true);
+        let cflags: String := envOrDefault("AUSTRAL_CFLAGS", "", false);
+        let ldflags: String := envOrDefault("AUSTRAL_LDFLAGS", "", false);
+        let quotedC: String := shellQuote(cPath);
+        let quotedBin: String := shellQuote(binPath);
+        var builder: StringBuilder := makeStringBuilder();
+        writeString(&!builder, &cc);
+        writeSpan(&!builder, " -fwrapv -Wno-builtin-declaration-mismatch");
+        if not isEmpty(&cflags) then
+            writeByte(&!builder, ' ');
+            writeString(&!builder, &cflags);
+        end if;
+        writeByte(&!builder, ' ');
+        writeString(&!builder, &quotedC);
+        writeSpan(&!builder, " -lm");
+        if not isEmpty(&ldflags) then
+            writeByte(&!builder, ' ');
+            writeString(&!builder, &ldflags);
+        end if;
+        writeSpan(&!builder, " -o ");
+        writeString(&!builder, &quotedBin);
+        let command: String := finalize(builder);
+        destroyString(cc);
+        destroyString(cflags);
+        destroyString(ldflags);
+        destroyString(quotedC);
+        destroyString(quotedBin);
+        return command;
+    end;
+
+    generic [R: Region]
+    function binaryCommand(binPath: &[String, R]): String is
+        return shellQuote(binPath);
+    end;
+
+    generic [R: Region]
+    function runCommand(command: &[String, R], stdin: Option[String]): CommandResult is
+        return run(command, stdin);
+    end;
+
+    generic [R: Region]
+    function commandExitCode(result: &[CommandResult, R]): Int32 is
+        return exitCode(result);
+    end;
+
+    generic [R: Region]
+    function commandStdout(result: &[CommandResult, R]): String is
+        return stdout(result);
+    end;
+
+    generic [R: Region]
+    function commandStderr(result: &[CommandResult, R]): String is
+        return stderr(result);
+    end;
+
+    function commandDestroy(result: CommandResult): Unit is
+        return destroyCommandResult(result);
     end;
 
     function resetFailures(): Unit is
-        let code: Int32 := @embed(Int32, "tr_reset_failures()");
-        return nil;
-    end;
-
-    function beginFailureDetails(
-        suite: Address[Nat8],
-        test: Address[Nat8],
-        cPath: Address[Nat8],
-        binPath: Address[Nat8],
-        australCommand: Address[Nat8],
-        cCommand: Address[Nat8],
-        reason: Span[Nat8, Static]
-    ): Unit is
-        let code: Int32 := @embed(
-            Int32,
-            "tr_begin_failure_details($1, $2, $3, $4, $5, $6, ($7).data, ($7).size)",
-            suite,
-            test,
-            cPath,
-            binPath,
-            australCommand,
-            cCommand,
-            reason
-        );
-        return nil;
-    end;
-
-    function appendFailureOutput(label: Span[Nat8, Static], value: Address[Nat8]): Unit is
-        let code: Int32 := @embed(Int32, "tr_append_failure_output(($1).data, ($1).size, $2)", label, value);
-        return nil;
-    end;
-
-    function endFailureDetails(): Unit is
-        let code: Int32 := @embed(Int32, "tr_end_failure_details()");
+        let path: String := fromLiteral("FAILURES.txt");
+        let contents: String := makeEmpty();
+        let ok: Bool := fsWriteFile(&path, &contents);
+        destroyString(path);
+        destroyString(contents);
         return nil;
     end;
 end module body.

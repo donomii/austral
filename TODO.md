@@ -200,8 +200,8 @@ Sources reviewed:
 
 - [x] Rewrite the compiler end-to-end test runner in Austral.
   - [x] Keep runner control flow in Austral.
-  - [x] Provide filesystem, environment, and subprocess primitives through a
-        small unsafe C support file.
+  - [x] Use standard library filesystem, environment, subprocess, and string
+        primitives instead of a runner-specific C support file.
   - [x] Build the runner with `make -C test-programs runner`.
   - [x] Use the Austral runner in CI.
 

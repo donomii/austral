@@ -36,4 +36,7 @@ module Standard.OS.FileSystem is
 
     generic [R: Region, S: Region]
     function writeFile(path: &[String, R], contents: &[String, S]): Bool;
+
+    generic [R: Region, S: Region]
+    function appendFile(path: &[String, R], contents: &[String, S]): Bool;
 end module.

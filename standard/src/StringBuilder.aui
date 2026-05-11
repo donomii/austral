@@ -16,8 +16,11 @@ module Standard.StringBuilder is
     generic [R: Region]
     function writeByte(builder: &![StringBuilder, R], byte: Nat8): Unit;
 
+    generic [R: Region]
+    function writeSpan(builder: &![StringBuilder, R], bytes: Span[Nat8, Static]): Unit;
+
     generic [R: Region, S: Region]
     function writeString(builder: &![StringBuilder, R], string: &[String, S]): Unit;
 
     function finalize(builder: StringBuilder): String;
-end module. 
+end module.
