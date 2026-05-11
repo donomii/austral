@@ -11,7 +11,7 @@ make
 # Run the OCaml tests.
 make test
 # Run the end-to-end tests.
-python3 test-programs/runner.py
+make -C test-programs test
 # Run the examples.
 ./run-examples.sh
 # Build the stdlib tests.

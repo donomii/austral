@@ -37,13 +37,12 @@ make -C test-programs runner
 Then run all end-to-end tests with:
 
 ```sh
-test-programs/austral-test-runner
+make -C test-programs test
 ```
 
-The runner is written in Austral under `test-programs/runner/`. Its small C
-support file, `test-programs/runner_support.c`, provides the filesystem,
-environment, and subprocess primitives that Austral does not expose in the
-standard library yet.
+The runner is written in Austral under `test-programs/runner/`. Its C support
+file, `test-programs/runner_support.c`, contains the remaining low-level runner
+glue for text handling, shell command construction, and failure report output.
 
 ## Generated C Compiler
 

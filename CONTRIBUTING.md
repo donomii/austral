@@ -179,10 +179,10 @@ Specific contribution areas:
 The compiler's tests are key to ensuring the compiler faithfully implements the
 [spec][spec].
 
-There's a small test runner written in Python, the tests are end-to-end and test
-the compiler externally, that is, by running the executable binary. This allows
-us to change the internals freely, since the external interface remains the
-same.
+There's a small test runner written in Austral. The tests are end-to-end and
+test the compiler externally, that is, by running the executable binary. This
+allows us to change the internals freely, since the external interface remains
+the same.
 
 Each test consists of some Austral code, along with the expected output of
 running that code, if it's a successful test (i.e. meant to compile and run

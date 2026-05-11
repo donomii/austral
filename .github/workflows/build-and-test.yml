@@ -35,11 +35,8 @@ jobs:
       - name: make test
         run: nix-shell --command 'make test'
 
-      - name: build end-to-end test runner
-        run: nix-shell --command 'make -C test-programs runner'
-
       - name: end-to-end tests
-        run: nix-shell --command 'test-programs/austral-test-runner'
+        run: nix-shell --command 'make -C test-programs test'
 
       - name: examples
         run: nix-shell --command 'bash run-examples.sh'
@@ -99,20 +96,15 @@ jobs:
           eval $(opam env)
           make test
 
-      - name: build end-to-end test runner
-        run: |
-          eval $(opam env)
-          make -C test-programs runner
-
       - name: end-to-end tests with gcc
         run: |
           eval $(opam env)
-          AUSTRAL_CC=gcc test-programs/austral-test-runner
+          AUSTRAL_CC=gcc make -C test-programs test
 
       - name: end-to-end tests with clang
         run: |
           eval $(opam env)
-          AUSTRAL_CC=clang test-programs/austral-test-runner
+          AUSTRAL_CC=clang make -C test-programs test
 
       - name: examples
         run: |
