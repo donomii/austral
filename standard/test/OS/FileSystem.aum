@@ -1,0 +1,86 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+import Standard.OS.FileSystem (
+    DirectoryList,
+    listDirectories,
+    directoryCount,
+    directoryName,
+    destroyDirectoryList,
+    pathJoin,
+    readFile,
+    writeFile
+);
+import Standard.String (
+    String,
+    fromLiteral,
+    destroyString,
+    equals,
+    isEmpty
+);
+import Standard.Test.Unit (
+    suiteHeading,
+    testHeading,
+    assertTrue,
+    assertFalse,
+    assertSuccess,
+    assertFailure
+);
+
+module body Standard.Test.OS.FileSystem is
+    function assertStringEquals(value: String, expectedLiteral: Span[Nat8, Static], message: Span[Nat8, Static]): Unit is
+        let expected: String := fromLiteral(expectedLiteral);
+        assertTrue(equals(&value, &expected), message);
+        destroyString(value);
+        destroyString(expected);
+        return nil;
+    end;
+
+    function fileSystemTestSuite(): Unit is
+        suiteHeading("Standard.OS.FileSystem");
+        pathReadWriteTest();
+        listDirectoriesTest();
+        return nil;
+    end;
+
+    function pathReadWriteTest(): Unit is
+        testHeading("path join, write, and read");
+        let tmp: String := fromLiteral("/tmp");
+        let name: String := fromLiteral("austral-stdlib-filesystem-test.txt");
+        let path: String := pathJoin(&tmp, &name);
+        let contents: String := fromLiteral("Austral filesystem test\n");
+        assertTrue(writeFile(&path, &contents), "writeFile succeeded");
+        destroyString(tmp);
+        destroyString(name);
+        destroyString(contents);
+
+        case readFile(&path) of
+            when Some(value as actual: String) do
+                assertStringEquals(actual, "Austral filesystem test\n", "readFile returned written contents");
+            when None do
+                assertFailure("readFile failed");
+        end case;
+        destroyString(path);
+        return nil;
+    end;
+
+    function listDirectoriesTest(): Unit is
+        testHeading("list directories");
+        let dot: String := fromLiteral(".");
+        let entries: DirectoryList := listDirectories(&dot);
+        let count: Index := directoryCount(&entries);
+        assertTrue(count > 0, "current directory has directories");
+        if count > 0 then
+            let name: String := directoryName(&entries, 0);
+            assertFalse(isEmpty(&name), "directory name is non-empty");
+            destroyString(name);
+        end if;
+        destroyDirectoryList(entries);
+        destroyString(dot);
+        assertSuccess("directory list destroyed");
+        return nil;
+    end;
+end module body.

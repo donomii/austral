@@ -1,0 +1,32 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+"""
+Subprocess helpers.
+
+Commands are executed by the platform shell and stdout/stderr are captured.
+"""
+import Standard.String (
+    String
+);
+
+module Standard.OS.Process is
+    type CommandResult: Linear;
+
+    generic [R: Region]
+    function run(command: &[String, R], stdin: Option[String]): CommandResult;
+
+    generic [R: Region]
+    function exitCode(result: &[CommandResult, R]): Int32;
+
+    generic [R: Region]
+    function stdout(result: &[CommandResult, R]): String;
+
+    generic [R: Region]
+    function stderr(result: &[CommandResult, R]): String;
+
+    function destroyCommandResult(result: CommandResult): Unit;
+end module.

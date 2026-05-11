@@ -1,0 +1,69 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address
+);
+import Standard.String (
+    String,
+    destroyString
+);
+import Standard.OS.Text (
+    stringToOwnedText,
+    ownedTextToString,
+    destroyOwnedText
+);
+
+module body Standard.OS.Process is
+    record CommandResult: Linear is
+        handle: Address[Nat8];
+    end;
+
+    generic [R: Region]
+    function run(command: &[String, R], stdin: Option[String]): CommandResult is
+        let commandText: Address[Nat8] := stringToOwnedText(command);
+        var stdinText: Address[Nat8] := @embed(Address[Nat8], "NULL");
+        case stdin of
+            when Some(value as input: String) do
+                stdinText := stringToOwnedText(&input);
+                destroyString(input);
+            when None do
+                skip;
+        end case;
+        let handle: Address[Nat8] := @embed(Address[Nat8], "au_os_run_command((const char*)$1, (const char*)$2)", commandText, stdinText);
+        destroyOwnedText(commandText);
+        let isNull: Bool := @embed(Bool, "$1 == NULL", stdinText);
+        if not isNull then
+            destroyOwnedText(stdinText);
+        end if;
+        return CommandResult(handle => handle);
+    end;
+
+    generic [R: Region]
+    function exitCode(result: &[CommandResult, R]): Int32 is
+        return @embed(Int32, "au_os_command_exit_code($1)", result->handle);
+    end;
+
+    generic [R: Region]
+    function stdout(result: &[CommandResult, R]): String is
+        let text: Address[Nat8] := @embed(Address[Nat8], "au_os_command_stdout($1)", result->handle);
+        return ownedTextToString(text);
+    end;
+
+    generic [R: Region]
+    function stderr(result: &[CommandResult, R]): String is
+        let text: Address[Nat8] := @embed(Address[Nat8], "au_os_command_stderr($1)", result->handle);
+        return ownedTextToString(text);
+    end;
+
+    function destroyCommandResult(result: CommandResult): Unit is
+        let { handle: Address[Nat8] } := result;
+        let code: Int32 := @embed(Int32, "(au_os_command_result_free($1), 0)", handle);
+        return nil;
+    end;
+end module body.

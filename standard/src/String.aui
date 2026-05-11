@@ -56,6 +56,18 @@ module Standard.String is
     function length(string: &[String, R]): Index;
 
     """
+    Return true when the string has no bytes.
+    """
+    generic [R: Region]
+    function isEmpty(string: &[String, R]): Bool;
+
+    """
+    Return true when two strings contain the same bytes.
+    """
+    generic [R: Region, S: Region]
+    function equals(left: &[String, R], right: &[String, S]): Bool;
+
+    """
     Return the nth byte of the string.
     """
     generic [R: Region]

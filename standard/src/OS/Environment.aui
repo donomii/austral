@@ -1,0 +1,19 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+"""
+Environment variable access.
+"""
+import Standard.String (
+    String
+);
+
+module Standard.OS.Environment is
+    generic [R: Region]
+    function get(name: &[String, R]): Option[String];
+
+    function getLiteral(name: Span[Nat8, Static]): Option[String];
+end module.

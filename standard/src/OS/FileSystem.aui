@@ -1,0 +1,39 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+"""
+Small filesystem helpers for tools and service programs.
+"""
+import Standard.String (
+    String
+);
+
+module Standard.OS.FileSystem is
+    type DirectoryList: Linear;
+
+    generic [R: Region]
+    function listDirectories(path: &[String, R]): DirectoryList;
+
+    generic [R: Region]
+    function directoryCount(entries: &[DirectoryList, R]): Index;
+
+    generic [R: Region]
+    function directoryName(entries: &[DirectoryList, R], index: Index): String;
+
+    function destroyDirectoryList(entries: DirectoryList): Unit;
+
+    generic [R: Region, S: Region]
+    function pathJoin(parent: &[String, R], child: &[String, S]): String;
+
+    generic [R: Region]
+    function pathJoinLiteral(parent: &[String, R], child: Span[Nat8, Static]): String;
+
+    generic [R: Region]
+    function readFile(path: &[String, R]): Option[String];
+
+    generic [R: Region, S: Region]
+    function writeFile(path: &[String, R], contents: &[String, S]): Bool;
+end module.

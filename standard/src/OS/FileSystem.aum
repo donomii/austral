@@ -1,0 +1,94 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address
+);
+import Standard.String (
+    String,
+    destroyString
+);
+import Standard.OS.Text (
+    stringToOwnedText,
+    literalToOwnedText,
+    ownedTextToString,
+    destroyOwnedText,
+    textIsNull
+);
+
+module body Standard.OS.FileSystem is
+    record DirectoryList: Linear is
+        handle: Address[Nat8];
+    end;
+
+    generic [R: Region]
+    function listDirectories(path: &[String, R]): DirectoryList is
+        let pathText: Address[Nat8] := stringToOwnedText(path);
+        let handle: Address[Nat8] := @embed(Address[Nat8], "au_os_list_directories((const char*)$1)", pathText);
+        destroyOwnedText(pathText);
+        return DirectoryList(handle => handle);
+    end;
+
+    generic [R: Region]
+    function directoryCount(entries: &[DirectoryList, R]): Index is
+        return @embed(Index, "au_os_dir_list_count($1)", entries->handle);
+    end;
+
+    generic [R: Region]
+    function directoryName(entries: &[DirectoryList, R], index: Index): String is
+        let nameText: Address[Nat8] := @embed(Address[Nat8], "au_os_dir_list_get($1, $2)", entries->handle, index);
+        return ownedTextToString(nameText);
+    end;
+
+    function destroyDirectoryList(entries: DirectoryList): Unit is
+        let { handle: Address[Nat8] } := entries;
+        let code: Int32 := @embed(Int32, "(au_os_dir_list_free($1), 0)", handle);
+        return nil;
+    end;
+
+    generic [R: Region, S: Region]
+    function pathJoin(parent: &[String, R], child: &[String, S]): String is
+        let parentText: Address[Nat8] := stringToOwnedText(parent);
+        let childText: Address[Nat8] := stringToOwnedText(child);
+        let joinedText: Address[Nat8] := @embed(Address[Nat8], "au_os_path_join((const char*)$1, (const char*)$2)", parentText, childText);
+        destroyOwnedText(parentText);
+        destroyOwnedText(childText);
+        return ownedTextToString(joinedText);
+    end;
+
+    generic [R: Region]
+    function pathJoinLiteral(parent: &[String, R], child: Span[Nat8, Static]): String is
+        let childString: String := ownedTextToString(literalToOwnedText(child));
+        let joined: String := pathJoin(parent, &childString);
+        destroyString(childString);
+        return joined;
+    end;
+
+    generic [R: Region]
+    function readFile(path: &[String, R]): Option[String] is
+        let pathText: Address[Nat8] := stringToOwnedText(path);
+        let contentsText: Address[Nat8] := @embed(Address[Nat8], "au_os_read_file((const char*)$1)", pathText);
+        destroyOwnedText(pathText);
+        if textIsNull(contentsText) then
+            return None();
+        else
+            let contents: String := ownedTextToString(contentsText);
+            return Some(value => contents);
+        end if;
+    end;
+
+    generic [R: Region, S: Region]
+    function writeFile(path: &[String, R], contents: &[String, S]): Bool is
+        let pathText: Address[Nat8] := stringToOwnedText(path);
+        let contentsText: Address[Nat8] := stringToOwnedText(contents);
+        let ok: Bool := @embed(Bool, "au_os_write_file((const char*)$1, (const char*)$2)", pathText, contentsText);
+        destroyOwnedText(pathText);
+        destroyOwnedText(contentsText);
+        return ok;
+    end;
+end module body.

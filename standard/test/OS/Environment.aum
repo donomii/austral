@@ -1,0 +1,54 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+import Standard.OS.Environment (
+    getLiteral
+);
+import Standard.String (
+    String,
+    destroyString,
+    isEmpty
+);
+import Standard.Test.Unit (
+    suiteHeading,
+    testHeading,
+    assertTrue,
+    assertSuccess,
+    assertFailure
+);
+
+module body Standard.Test.OS.Environment is
+    function environmentTestSuite(): Unit is
+        suiteHeading("Standard.OS.Environment");
+        missingVariableTest();
+        pathVariableTest();
+        return nil;
+    end;
+
+    function missingVariableTest(): Unit is
+        testHeading("missing variable returns None");
+        case getLiteral("AUSTRAL_STDLIB_TEST_SHOULD_NOT_EXIST") of
+            when None do
+                assertSuccess("missing variable was absent");
+            when Some(value as contents: String) do
+                destroyString(contents);
+                assertFailure("missing variable unexpectedly existed");
+        end case;
+        return nil;
+    end;
+
+    function pathVariableTest(): Unit is
+        testHeading("PATH is readable");
+        case getLiteral("PATH") of
+            when Some(value as contents: String) do
+                assertTrue(not isEmpty(&contents), "PATH is non-empty");
+                destroyString(contents);
+            when None do
+                assertFailure("PATH was not available");
+        end case;
+        return nil;
+    end;
+end module body.
