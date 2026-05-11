@@ -12,7 +12,8 @@ import Standard.OS.FileSystem (
     destroyDirectoryList,
     pathJoin,
     readFile,
-    writeFile
+    writeFile,
+    appendFile
 );
 import Standard.String (
     String,
@@ -52,14 +53,17 @@ module body Standard.Test.OS.FileSystem is
         let name: String := fromLiteral("austral-stdlib-filesystem-test.txt");
         let path: String := pathJoin(&tmp, &name);
         let contents: String := fromLiteral("Austral filesystem test\n");
+        let suffix: String := fromLiteral("append works\n");
         assertTrue(writeFile(&path, &contents), "writeFile succeeded");
+        assertTrue(appendFile(&path, &suffix), "appendFile succeeded");
         destroyString(tmp);
         destroyString(name);
         destroyString(contents);
+        destroyString(suffix);
 
         case readFile(&path) of
             when Some(value as actual: String) do
-                assertStringEquals(actual, "Austral filesystem test\n", "readFile returned written contents");
+                assertStringEquals(actual, "Austral filesystem test\nappend works\n", "readFile returned written contents");
             when None do
                 assertFailure("readFile failed");
         end case;

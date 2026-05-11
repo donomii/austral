@@ -32,13 +32,29 @@ module body Standard.StringBuilder is
         return nil;
     end;
 
+    generic [R: Region]
+    function writeSpan(builder: &![StringBuilder, R], bytes: Span[Nat8, Static]): Unit is
+        let size: Index := spanLength(bytes);
+        if size > 0 then
+            for i from 0 to size - 1 do
+                borrow ref: &![StringBuilder, T] := &~builder do
+                    insertBack(&(ref->buffer), bytes[i]);
+                end borrow;
+            end for;
+        end if;
+        return nil;
+    end;
+
     generic [R: Region, S: Region]
     function writeString(builder: &![StringBuilder, R], string: &[String, S]): Unit is
-        for i from 0 to length(string) - 1 do
-            borrow ref: &[String, T] := &~builder do
-                insertBack(&(ref->buffer), nthByte(string, i));
-            end borrow;
-        end for;
+        let size: Index := length(string);
+        if size > 0 then
+            for i from 0 to size - 1 do
+                borrow ref: &![StringBuilder, T] := &~builder do
+                    insertBack(&(ref->buffer), nthByte(string, i));
+                end borrow;
+            end for;
+        end if;
         return nil;
     end;
 
@@ -46,4 +62,4 @@ module body Standard.StringBuilder is
         let { buffer: Buffer[Nat8] } := builder;
         return fromByteBuffer(buffer);
     end;
-end module body. 
+end module body.

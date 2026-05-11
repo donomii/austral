@@ -5,10 +5,33 @@ all:
 
 RUNNER_C := /tmp/austral-test-program-runner.c
 RUNNER_BIN := austral-test-runner
+STANDARD_MODULES := \
+	../standard/src/Buffer.aui,../standard/src/Buffer.aum \
+	../standard/src/String.aui,../standard/src/String.aum \
+	../standard/src/StringBuilder.aui,../standard/src/StringBuilder.aum \
+	../standard/src/OS/Text.aui,../standard/src/OS/Text.aum \
+	../standard/src/OS/Environment.aui,../standard/src/OS/Environment.aum \
+	../standard/src/OS/FileSystem.aui,../standard/src/OS/FileSystem.aum \
+	../standard/src/OS/Process.aui,../standard/src/OS/Process.aum
 RUNNER_MODULES := \
+	$(STANDARD_MODULES) \
 	runner/Support.aui,runner/Support.aum \
 	runner/Main.aui,runner/Main.aum
 RUNNER_DEPS := \
+	../standard/src/Buffer.aui \
+	../standard/src/Buffer.aum \
+	../standard/src/String.aui \
+	../standard/src/String.aum \
+	../standard/src/StringBuilder.aui \
+	../standard/src/StringBuilder.aum \
+	../standard/src/OS/Text.aui \
+	../standard/src/OS/Text.aum \
+	../standard/src/OS/Environment.aui \
+	../standard/src/OS/Environment.aum \
+	../standard/src/OS/FileSystem.aui \
+	../standard/src/OS/FileSystem.aum \
+	../standard/src/OS/Process.aui \
+	../standard/src/OS/Process.aum \
 	runner/Support.aui \
 	runner/Support.aum \
 	runner/Main.aui \
@@ -19,11 +42,11 @@ runner: $(RUNNER_BIN)
 
 .PHONY: test
 test: $(RUNNER_BIN)
-	./$(RUNNER_BIN)
+	cd .. && test-programs/$(RUNNER_BIN)
 
-$(RUNNER_BIN): $(RUNNER_DEPS) runner_support.c runner_support.h ../austral
+$(RUNNER_BIN): $(RUNNER_DEPS) ../austral
 	../austral compile $(RUNNER_MODULES) --entrypoint=TestPrograms.Runner.Main:main --target-type=c --output=$(RUNNER_C) --error-format=json
-	$(CC) -fwrapv -Wno-builtin-declaration-mismatch -include runner_support.h $(RUNNER_C) runner_support.c -lm -o $(RUNNER_BIN)
+	$(CC) -fwrapv -Wno-builtin-declaration-mismatch $(RUNNER_C) -lm -o $(RUNNER_BIN)
 
 clean:
 	rm -rf suites/012-numbers/

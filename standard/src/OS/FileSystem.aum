@@ -91,4 +91,14 @@ module body Standard.OS.FileSystem is
         destroyOwnedText(contentsText);
         return ok;
     end;
+
+    generic [R: Region, S: Region]
+    function appendFile(path: &[String, R], contents: &[String, S]): Bool is
+        let pathText: Address[Nat8] := stringToOwnedText(path);
+        let contentsText: Address[Nat8] := stringToOwnedText(contents);
+        let ok: Bool := @embed(Bool, "au_os_append_file((const char*)$1, (const char*)$2)", pathText, contentsText);
+        destroyOwnedText(pathText);
+        destroyOwnedText(contentsText);
+        return ok;
+    end;
 end module body.

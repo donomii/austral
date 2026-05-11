@@ -40,9 +40,8 @@ Then run all end-to-end tests with:
 make -C test-programs test
 ```
 
-The runner is written in Austral under `test-programs/runner/`. Its C support
-file, `test-programs/runner_support.c`, contains the remaining low-level runner
-glue for text handling, shell command construction, and failure report output.
+The runner is written in Austral under `test-programs/runner/` and uses the
+standard library filesystem, environment, process, and string modules.
 
 ## Generated C Compiler
 

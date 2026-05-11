@@ -9,6 +9,7 @@ import Standard.Buffer (
     allocateEmpty,
     initialize,
     destroyFree,
+    insertBack,
     length as bufLength,
     nth as bufNth,
     storeNth as bufStoreNth,
@@ -89,6 +90,188 @@ module body Standard.String is
             end for;
         end if;
         return true;
+    end;
+
+    generic [R: Region, S: Region]
+    function rangeEquals(left: &[String, R], start: Index, right: &[String, S]): Bool is
+        let rightLength: Index := length(right);
+        if rightLength > 0 then
+            for i from 0 to rightLength - 1 do
+                if nthByte(left, start + i) /= nthByte(right, i) then
+                    return false;
+                end if;
+            end for;
+        end if;
+        return true;
+    end;
+
+    generic [R: Region, S: Region]
+    function startsWith(string: &[String, R], prefix: &[String, S]): Bool is
+        let stringLength: Index := length(string);
+        let prefixLength: Index := length(prefix);
+        if prefixLength > stringLength then
+            return false;
+        else
+            return rangeEquals(string, 0, prefix);
+        end if;
+    end;
+
+    generic [R: Region]
+    function startsWithLiteral(string: &[String, R], prefix: Span[Nat8, Static]): Bool is
+        let prefixString: String := fromLiteral(prefix);
+        let result: Bool := startsWith(string, &prefixString);
+        destroyString(prefixString);
+        return result;
+    end;
+
+    generic [R: Region, S: Region]
+    function contains(string: &[String, R], needle: &[String, S]): Bool is
+        let stringLength: Index := length(string);
+        let needleLength: Index := length(needle);
+        if needleLength = 0 then
+            return true;
+        end if;
+        if needleLength > stringLength then
+            return false;
+        end if;
+        for offset from 0 to stringLength - needleLength do
+            if rangeEquals(string, offset, needle) then
+                return true;
+            end if;
+        end for;
+        return false;
+    end;
+
+    generic [R: Region]
+    function containsLiteral(string: &[String, R], needle: Span[Nat8, Static]): Bool is
+        let needleString: String := fromLiteral(needle);
+        let result: Bool := contains(string, &needleString);
+        destroyString(needleString);
+        return result;
+    end;
+
+    generic [R: Region, S: Region]
+    function appendRange(buffer: &![Buffer[Nat8], R], string: &[String, S], start: Index, count: Index): Unit is
+        if count > 0 then
+            for i from 0 to count - 1 do
+                insertBack(&~buffer, nthByte(string, start + i));
+            end for;
+        end if;
+        return nil;
+    end;
+
+    generic [R: Region]
+    function copy(string: &[String, R]): String is
+        var buffer: Buffer[Nat8] := allocateEmpty();
+        appendRange(&!buffer, string, 0, length(string));
+        return fromByteBuffer(buffer);
+    end;
+
+    generic [R: Region, S: Region]
+    function append(left: &[String, R], right: &[String, S]): String is
+        var buffer: Buffer[Nat8] := allocateEmpty();
+        appendRange(&!buffer, left, 0, length(left));
+        appendRange(&!buffer, right, 0, length(right));
+        return fromByteBuffer(buffer);
+    end;
+
+    function isSpace(byte: Nat8): Bool is
+        if byte = ' ' then
+            return true;
+        end if;
+        if byte = '\n' then
+            return true;
+        end if;
+        if byte = '\r' then
+            return true;
+        end if;
+        if byte = (9 : Nat8) then
+            return true;
+        end if;
+        return false;
+    end;
+
+    generic [R: Region]
+    function strip(string: &[String, R]): String is
+        let stringLength: Index := length(string);
+        var start: Index := 0;
+        var final: Index := stringLength;
+        while (start < final) and isSpace(nthByte(string, start)) do
+            start := start + 1;
+        end while;
+        while (final > start) and isSpace(nthByte(string, final - 1)) do
+            final := final - 1;
+        end while;
+        var buffer: Buffer[Nat8] := allocateEmpty();
+        appendRange(&!buffer, string, start, final - start);
+        return fromByteBuffer(buffer);
+    end;
+
+    generic [R: Region]
+    function rangeIsSpace(string: &[String, R], start: Index, final: Index): Bool is
+        if final > start then
+            for i from start to final - 1 do
+                if not isSpace(nthByte(string, i)) then
+                    return false;
+                end if;
+            end for;
+        end if;
+        return true;
+    end;
+
+    generic [R: Region]
+    function trimLines(string: &[String, R]): String is
+        let stripped: String := strip(string);
+        let stringLength: Index := length(&stripped);
+        var buffer: Buffer[Nat8] := allocateEmpty();
+        var lineStart: Index := 0;
+        var cursor: Index := 0;
+        var firstLine: Bool := true;
+        while cursor < stringLength do
+            if nthByte(&stripped, cursor) = '\n' then
+                if firstLine then
+                    firstLine := false;
+                else
+                    insertBack(&!buffer, 10 : Nat8);
+                end if;
+                if not rangeIsSpace(&stripped, lineStart, cursor) then
+                    appendRange(&!buffer, &stripped, lineStart, cursor - lineStart);
+                end if;
+                lineStart := cursor + 1;
+            end if;
+            cursor := cursor + 1;
+        end while;
+        if firstLine then
+            firstLine := false;
+        else
+            insertBack(&!buffer, 10 : Nat8);
+        end if;
+        if not rangeIsSpace(&stripped, lineStart, stringLength) then
+            appendRange(&!buffer, &stripped, lineStart, stringLength - lineStart);
+        end if;
+        destroyString(stripped);
+        return fromByteBuffer(buffer);
+    end;
+
+    generic [R: Region, S: Region, T: Region]
+    function replaceAll(string: &[String, R], needle: &[String, S], replacement: &[String, T]): String is
+        let stringLength: Index := length(string);
+        let needleLength: Index := length(needle);
+        if needleLength = 0 then
+            return copy(string);
+        end if;
+        var buffer: Buffer[Nat8] := allocateEmpty();
+        var cursor: Index := 0;
+        while cursor < stringLength do
+            if ((cursor + needleLength) <= stringLength) and rangeEquals(string, cursor, needle) then
+                appendRange(&!buffer, replacement, 0, length(replacement));
+                cursor := cursor + needleLength;
+            else
+                insertBack(&!buffer, nthByte(string, cursor));
+                cursor := cursor + 1;
+            end if;
+        end while;
+        return fromByteBuffer(buffer);
     end;
 
     generic [R: Region]

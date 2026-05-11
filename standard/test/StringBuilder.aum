@@ -22,6 +22,7 @@ import Standard.StringBuilder (
     StringBuilder,
     makeStringBuilder,
     writeByte,
+    writeSpan,
     writeString,
     finalize
 );
@@ -30,6 +31,7 @@ module body Standard.Test.StringBuilder is
     function stringBuilderTestSuite(): Unit is
         suiteHeading("Standard.StringBuilder");
         basicTest();
+        emptyWritesTest();
         return nil;
     end;
 
@@ -50,6 +52,22 @@ module body Standard.Test.StringBuilder is
         assertTrue(nthByte(&last, 4) = 'e', "[4] = e");
         assertTrue(nthByte(&last, 5) = 'f', "[5] = f");
         destroyString(str);
+        destroyString(last);
+        return nil;
+    end;
+
+    function emptyWritesTest(): Unit is
+        testHeading("empty writes");
+        var sb: StringBuilder := makeStringBuilder();
+        let empty: String := fromLiteral("");
+        writeString(&!sb, &empty);
+        writeSpan(&!sb, "");
+        writeSpan(&!sb, "ok");
+        let last: String := finalize(sb);
+        assertLength(&last, 2);
+        assertTrue(nthByte(&last, 0) = 'o', "[0] = o");
+        assertTrue(nthByte(&last, 1) = 'k', "[1] = k");
+        destroyString(empty);
         destroyString(last);
         return nil;
     end;

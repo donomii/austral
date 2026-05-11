@@ -1,85 +1,67 @@
-import Austral.Memory (
-    Address
+import Standard.OS.FileSystem (
+    DirectoryList
+);
+import Standard.OS.Process (
+    CommandResult
+);
+import Standard.String (
+    String
 );
 
 module TestPrograms.Runner.Support is
-    function nullText(): Address[Nat8];
+    function emptyString(): String;
 
-    function textFromSpan(value: Span[Nat8, Static]): Address[Nat8];
-
-    function textDestroy(text: Address[Nat8]): Unit;
-
-    function textIsNull(text: Address[Nat8]): Bool;
-
-    function textIsEmpty(text: Address[Nat8]): Bool;
-
-    function textEquals(left: Address[Nat8], right: Address[Nat8]): Bool;
-
-    function textContains(text: Address[Nat8], pattern: Address[Nat8]): Bool;
-
-    function textStrip(text: Address[Nat8]): Address[Nat8];
-
-    function textTrimLines(text: Address[Nat8]): Address[Nat8];
+    function argumentToString(index: Index): String;
 
     function argumentEquals(index: Index, value: Span[Nat8, Static]): Bool;
 
     function argumentIsFlag(index: Index): Bool;
 
-    function listDirectories(path: Address[Nat8]): Address[Nat8];
+    function destroyOptionalString(value: Option[String]): Unit;
 
-    function dirListLength(list: Address[Nat8]): Index;
+    generic [R: Region]
+    function printString(value: &[String, R]): Unit;
 
-    function dirListGet(list: Address[Nat8], index: Index): Address[Nat8];
+    generic [R: Region, S: Region]
+    function printResult(suite: &[String, R], test: &[String, S], passed: Bool): Unit;
 
-    function dirListDestroy(list: Address[Nat8]): Unit;
+    generic [R: Region, S: Region]
+    function tempCPath(suite: &[String, R], test: &[String, S]): String;
 
-    function pathJoin(parent: Address[Nat8], child: Address[Nat8]): Address[Nat8];
+    generic [R: Region, S: Region]
+    function tempBinPath(suite: &[String, R], test: &[String, S]): String;
 
-    function pathJoinLiteral(parent: Address[Nat8], child: Span[Nat8, Static]): Address[Nat8];
+    generic [R: Region]
+    function readFileTrim(path: &[String, R]): Option[String];
 
-    function tempCPath(suite: Address[Nat8], test: Address[Nat8]): Address[Nat8];
+    generic [R: Region, S: Region]
+    function writeFile(path: &[String, R], contents: &[String, S]): Bool;
 
-    function tempBinPath(suite: Address[Nat8], test: Address[Nat8]): Address[Nat8];
+    generic [R: Region, S: Region]
+    function defaultCompileCommand(testDir: &[String, R], cPath: &[String, S]): String;
 
-    function readFileTrim(path: Address[Nat8]): Address[Nat8];
+    generic [R: Region, S: Region, T: Region]
+    function cliCompileCommand(cli: &[String, R], testDir: &[String, S], cPath: &[String, T]): String;
 
-    function readFileRaw(path: Address[Nat8]): Address[Nat8];
+    generic [R: Region, S: Region]
+    function cCompilerCommand(cPath: &[String, R], binPath: &[String, S]): String;
 
-    function writeFile(path: Address[Nat8], contents: Address[Nat8]): Bool;
+    generic [R: Region]
+    function binaryCommand(binPath: &[String, R]): String;
 
-    function defaultCompileCommand(testDir: Address[Nat8], cPath: Address[Nat8]): Address[Nat8];
+    generic [R: Region]
+    function runCommand(command: &[String, R], stdin: Option[String]): CommandResult;
 
-    function cliCompileCommand(cli: Address[Nat8], testDir: Address[Nat8], cPath: Address[Nat8]): Address[Nat8];
+    generic [R: Region]
+    function commandExitCode(result: &[CommandResult, R]): Int32;
 
-    function cCompilerCommand(cPath: Address[Nat8], binPath: Address[Nat8]): Address[Nat8];
+    generic [R: Region]
+    function commandStdout(result: &[CommandResult, R]): String;
 
-    function binaryCommand(binPath: Address[Nat8]): Address[Nat8];
+    generic [R: Region]
+    function commandStderr(result: &[CommandResult, R]): String;
 
-    function runCommand(command: Address[Nat8], stdin: Address[Nat8]): Address[Nat8];
-
-    function commandExitCode(result: Address[Nat8]): Int32;
-
-    function commandStdout(result: Address[Nat8]): Address[Nat8];
-
-    function commandStderr(result: Address[Nat8]): Address[Nat8];
-
-    function commandDestroy(result: Address[Nat8]): Unit;
-
-    function printResult(suite: Address[Nat8], test: Address[Nat8], passed: Bool): Unit;
+    function commandDestroy(result: CommandResult): Unit;
 
     function resetFailures(): Unit;
-
-    function beginFailureDetails(
-        suite: Address[Nat8],
-        test: Address[Nat8],
-        cPath: Address[Nat8],
-        binPath: Address[Nat8],
-        australCommand: Address[Nat8],
-        cCommand: Address[Nat8],
-        reason: Span[Nat8, Static]
-    ): Unit;
-
-    function appendFailureOutput(label: Span[Nat8, Static], value: Address[Nat8]): Unit;
-
-    function endFailureDetails(): Unit;
 end module.

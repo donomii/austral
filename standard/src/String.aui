@@ -68,6 +68,62 @@ module Standard.String is
     function equals(left: &[String, R], right: &[String, S]): Bool;
 
     """
+    Return true when `string` starts with `prefix`.
+    """
+    generic [R: Region, S: Region]
+    function startsWith(string: &[String, R], prefix: &[String, S]): Bool;
+
+    """
+    Return true when `string` starts with the bytes in `prefix`.
+    """
+    generic [R: Region]
+    function startsWithLiteral(string: &[String, R], prefix: Span[Nat8, Static]): Bool;
+
+    """
+    Return true when `string` contains `needle`.
+    """
+    generic [R: Region, S: Region]
+    function contains(string: &[String, R], needle: &[String, S]): Bool;
+
+    """
+    Return true when `string` contains the bytes in `needle`.
+    """
+    generic [R: Region]
+    function containsLiteral(string: &[String, R], needle: Span[Nat8, Static]): Bool;
+
+    """
+    Return a copy of the string.
+    """
+    generic [R: Region]
+    function copy(string: &[String, R]): String;
+
+    """
+    Return the concatenation of two strings.
+    """
+    generic [R: Region, S: Region]
+    function append(left: &[String, R], right: &[String, S]): String;
+
+    """
+    Return `string` with leading and trailing ASCII whitespace removed.
+    """
+    generic [R: Region]
+    function strip(string: &[String, R]): String;
+
+    """
+    Trim the whole string, then replace lines containing only whitespace with
+    empty lines.
+    """
+    generic [R: Region]
+    function trimLines(string: &[String, R]): String;
+
+    """
+    Return `string` with every occurrence of `needle` replaced by
+    `replacement`.
+    """
+    generic [R: Region, S: Region, T: Region]
+    function replaceAll(string: &[String, R], needle: &[String, S], replacement: &[String, T]): String;
+
+    """
     Return the nth byte of the string.
     """
     generic [R: Region]

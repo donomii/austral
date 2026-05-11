@@ -11,6 +11,14 @@ import Standard.String (
     destroyString,
     fromLiteral,
     length,
+    equals,
+    startsWithLiteral,
+    containsLiteral,
+    copy,
+    append,
+    strip,
+    trimLines,
+    replaceAll,
     nthByte,
     storeNth
 );
@@ -30,6 +38,10 @@ module body Standard.Test.String is
         fromLiteralTest();
         fromLiteralEmptyTest();
         storeNthTest();
+        comparisonTest();
+        copyAppendStripTest();
+        trimLinesTest();
+        replaceAllTest();
         return nil;
     end;
 
@@ -97,6 +109,61 @@ module body Standard.Test.String is
         assertTrue(nthByte(&b, 0) = 'b', "[0] = b");
         destroyString(b);
         assertSuccess("destroyString complete");
+        return nil;
+    end;
+
+    function assertStringEquals(value: String, expectedLiteral: Span[Nat8, Static], message: Span[Nat8, Static]): Unit is
+        let expected: String := fromLiteral(expectedLiteral);
+        assertTrue(equals(&value, &expected), message);
+        destroyString(value);
+        destroyString(expected);
+        return nil;
+    end;
+
+    function comparisonTest(): Unit is
+        testHeading("comparison helpers");
+        let s: String := fromLiteral("Austral runner");
+        assertTrue(startsWithLiteral(&s, "Austral"), "startsWithLiteral");
+        assertTrue(containsLiteral(&s, "run"), "containsLiteral");
+        assertTrue(containsLiteral(&s, ""), "containsLiteral empty");
+        destroyString(s);
+        return nil;
+    end;
+
+    function copyAppendStripTest(): Unit is
+        testHeading("copy, append, and strip");
+        let left: String := fromLiteral("  Austral");
+        let right: String := fromLiteral("  ");
+        let joined: String := append(&left, &right);
+        let stripped: String := strip(&joined);
+        let copied: String := copy(&stripped);
+        assertStringEquals(copied, "Austral", "copy preserves bytes");
+        assertStringEquals(stripped, "Austral", "strip removes outside whitespace");
+        destroyString(joined);
+        destroyString(left);
+        destroyString(right);
+        return nil;
+    end;
+
+    function trimLinesTest(): Unit is
+        testHeading("trimLines");
+        let input: String := fromLiteral("  first\n   \nsecond  \n");
+        let trimmed: String := trimLines(&input);
+        assertStringEquals(trimmed, "first\n\nsecond", "trimLines trims outer whitespace and blank lines");
+        destroyString(input);
+        return nil;
+    end;
+
+    function replaceAllTest(): Unit is
+        testHeading("replaceAll");
+        let input: String := fromLiteral("$DIR/$C_PATH/$DIR");
+        let needle: String := fromLiteral("$DIR");
+        let replacement: String := fromLiteral("test");
+        let replaced: String := replaceAll(&input, &needle, &replacement);
+        assertStringEquals(replaced, "test/$C_PATH/test", "replaceAll replaces every match");
+        destroyString(input);
+        destroyString(needle);
+        destroyString(replacement);
         return nil;
     end;
 

@@ -120,6 +120,8 @@ char* au_os_read_file(const char* path);
 
 au_bool_t au_os_write_file(const char* path, const char* contents);
 
+au_bool_t au_os_append_file(const char* path, const char* contents);
+
 char* au_os_getenv(const char* name);
 
 typedef struct au_os_command_result au_os_command_result_t;

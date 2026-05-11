@@ -477,6 +477,25 @@ au_bool_t au_os_write_file(const char* path, const char* contents) {
   return ok;
 }
 
+au_bool_t au_os_append_file(const char* path, const char* contents) {
+  extern void* fopen(const char* path, const char* mode);
+  extern size_t fwrite(const void* ptr, size_t size, size_t count, void* stream);
+  extern int fclose(void* stream);
+  extern size_t strlen(const char* text);
+
+  void* file = fopen(path, "ab");
+  if (file == NULL) {
+    return false;
+  }
+  if (contents == NULL) {
+    contents = "";
+  }
+  size_t size = strlen(contents);
+  au_bool_t ok = fwrite(contents, 1, size, file) == size;
+  fclose(file);
+  return ok;
+}
+
 char* au_os_getenv(const char* name) {
   extern char* getenv(const char* name);
 
