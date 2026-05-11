@@ -61,6 +61,10 @@ extern au_unit_t au_abort(au_span_t message);
 
 extern au_unit_t au_printf(const char* format, ...);
 
+extern int au_os_fputc(int c, void* stream);
+
+extern int au_os_fgetc(void* stream);
+
 /*
  * Memory functions
  */
@@ -84,5 +88,50 @@ void au_store_cli_args(int argc, char** argv);
 size_t au_get_argc();
 
 au_span_t au_get_nth_arg(size_t n);
+
+/*
+ * Small OS support functions used by the standard library.
+ *
+ * These functions allocate owned C strings with malloc-compatible storage.
+ * Callers must release returned strings with au_os_text_free.
+ */
+
+char* au_os_text_from_bytes(const au_nat8_t* data, size_t size);
+
+void au_os_text_free(char* text);
+
+size_t au_os_text_length(const char* text);
+
+au_nat8_t au_os_text_byte(const char* text, size_t index);
+
+typedef struct au_os_dir_list au_os_dir_list_t;
+
+au_os_dir_list_t* au_os_list_directories(const char* path);
+
+size_t au_os_dir_list_count(au_os_dir_list_t* list);
+
+char* au_os_dir_list_get(au_os_dir_list_t* list, size_t index);
+
+void au_os_dir_list_free(au_os_dir_list_t* list);
+
+char* au_os_path_join(const char* parent, const char* child);
+
+char* au_os_read_file(const char* path);
+
+au_bool_t au_os_write_file(const char* path, const char* contents);
+
+char* au_os_getenv(const char* name);
+
+typedef struct au_os_command_result au_os_command_result_t;
+
+au_os_command_result_t* au_os_run_command(const char* command, const char* stdin_text);
+
+int au_os_command_exit_code(au_os_command_result_t* result);
+
+char* au_os_command_stdout(au_os_command_result_t* result);
+
+char* au_os_command_stderr(au_os_command_result_t* result);
+
+void au_os_command_result_free(au_os_command_result_t* result);
 
 /* --- END prelude.h --- */

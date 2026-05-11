@@ -1,0 +1,28 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+"""
+Internal helpers for bridging Austral strings to owned null-terminated C text.
+"""
+import Austral.Memory (
+    Address
+);
+import Standard.String (
+    String
+);
+
+module Standard.OS.Text is
+    generic [R: Region]
+    function stringToOwnedText(string: &[String, R]): Address[Nat8];
+
+    function literalToOwnedText(value: Span[Nat8, Static]): Address[Nat8];
+
+    function ownedTextToString(text: Address[Nat8]): String;
+
+    function destroyOwnedText(text: Address[Nat8]): Unit;
+
+    function textIsNull(text: Address[Nat8]): Bool;
+end module.

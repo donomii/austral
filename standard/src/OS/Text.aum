@@ -1,0 +1,61 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address
+);
+import Standard.String (
+    String,
+    length,
+    getSpan
+);
+import Standard.StringBuilder (
+    StringBuilder,
+    makeStringBuilder,
+    writeByte,
+    finalize
+);
+
+module body Standard.OS.Text is
+    generic [R: Region]
+    function stringToOwnedText(string: &[String, R]): Address[Nat8] is
+        let size: Index := length(string);
+        if size = 0 then
+            return @embed(Address[Nat8], "au_os_text_from_bytes(NULL, 0)");
+        else
+            let bytes: Span[Nat8, R] := getSpan(string, 0, size - 1);
+            return @embed(Address[Nat8], "au_os_text_from_bytes(($1).data, ($1).size)", bytes);
+        end if;
+    end;
+
+    function literalToOwnedText(value: Span[Nat8, Static]): Address[Nat8] is
+        return @embed(Address[Nat8], "au_os_text_from_bytes(($1).data, ($1).size)", value);
+    end;
+
+    function ownedTextToString(text: Address[Nat8]): String is
+        let size: Index := @embed(Index, "au_os_text_length((const char*)$1)", text);
+        var builder: StringBuilder := makeStringBuilder();
+        if size > 0 then
+            for i from 0 to size - 1 do
+                let byte: Nat8 := @embed(Nat8, "au_os_text_byte((const char*)$1, $2)", text, i);
+                writeByte(&!builder, byte);
+            end for;
+        end if;
+        let code: Int32 := @embed(Int32, "(au_os_text_free((char*)$1), 0)", text);
+        return finalize(builder);
+    end;
+
+    function destroyOwnedText(text: Address[Nat8]): Unit is
+        let code: Int32 := @embed(Int32, "(au_os_text_free((char*)$1), 0)", text);
+        return nil;
+    end;
+
+    function textIsNull(text: Address[Nat8]): Bool is
+        return @embed(Bool, "$1 == NULL", text);
+    end;
+end module body.

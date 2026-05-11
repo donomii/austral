@@ -13,6 +13,9 @@ import Standard.Test.Buffer (bufferTestSuite);
 import Standard.Test.String (byteStringTestSuite);
 import Standard.Test.StringBuilder (stringBuilderTestSuite);
 import Standard.Test.IO.Terminal (terminalTestSuite);
+import Standard.Test.OS.Environment (environmentTestSuite);
+import Standard.Test.OS.FileSystem (fileSystemTestSuite);
+import Standard.Test.OS.Process (processTestSuite);
 
 module body Standard.Test is
     function Main(root: RootCapability): ExitCode is
@@ -26,6 +29,9 @@ module body Standard.Test is
         byteStringTestSuite();
         stringBuilderTestSuite();
         terminalTestSuite(&!root2);
+        environmentTestSuite();
+        fileSystemTestSuite();
+        processTestSuite();
         surrenderRoot(root2);
         return ExitSuccess();
     end;

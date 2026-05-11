@@ -1,0 +1,80 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+import Standard.OS.Process (
+    CommandResult,
+    run,
+    exitCode,
+    stdout,
+    stderr,
+    destroyCommandResult
+);
+import Standard.String (
+    String,
+    fromLiteral,
+    destroyString,
+    equals
+);
+import Standard.Test.Unit (
+    suiteHeading,
+    testHeading,
+    assertTrue
+);
+
+module body Standard.Test.OS.Process is
+    function assertStringEquals(value: String, expectedLiteral: Span[Nat8, Static], message: Span[Nat8, Static]): Unit is
+        let expected: String := fromLiteral(expectedLiteral);
+        assertTrue(equals(&value, &expected), message);
+        destroyString(value);
+        destroyString(expected);
+        return nil;
+    end;
+
+    function processTestSuite(): Unit is
+        suiteHeading("Standard.OS.Process");
+        stdoutCaptureTest();
+        stderrAndExitCodeTest();
+        stdinTest();
+        return nil;
+    end;
+
+    function stdoutCaptureTest(): Unit is
+        testHeading("stdout capture");
+        let command: String := fromLiteral("printf austral");
+        let result: CommandResult := run(&command, None() : Option[String]);
+        assertTrue(exitCode(&result) = 0, "exit code is zero");
+        assertStringEquals(stdout(&result), "austral", "stdout captured");
+        assertStringEquals(stderr(&result), "", "stderr empty");
+        destroyCommandResult(result);
+        destroyString(command);
+        return nil;
+    end;
+
+    function stderrAndExitCodeTest(): Unit is
+        testHeading("stderr and exit code capture");
+        let command: String := fromLiteral("printf problem >&2; exit 7");
+        let result: CommandResult := run(&command, None() : Option[String]);
+        assertTrue(exitCode(&result) = 7, "exit code is captured");
+        assertStringEquals(stdout(&result), "", "stdout empty");
+        assertStringEquals(stderr(&result), "problem", "stderr captured");
+        destroyCommandResult(result);
+        destroyString(command);
+        return nil;
+    end;
+
+    function stdinTest(): Unit is
+        testHeading("stdin");
+        let command: String := fromLiteral("cat");
+        let input: String := fromLiteral("through stdin");
+        let result: CommandResult := run(&command, Some(value => input));
+        assertTrue(exitCode(&result) = 0, "exit code is zero");
+        assertStringEquals(stdout(&result), "through stdin", "stdin was passed to process");
+        assertStringEquals(stderr(&result), "", "stderr empty");
+        destroyCommandResult(result);
+        destroyString(command);
+        return nil;
+    end;
+end module body.

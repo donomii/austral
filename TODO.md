@@ -142,8 +142,9 @@ Sources reviewed:
   - Related upstream issue: #597.
 
 - [ ] Add service-oriented modules.
-  - [ ] Environment/config.
-  - [ ] Filesystem.
+  - [x] Environment/config.
+  - [x] Filesystem.
+  - [x] Process execution.
   - [ ] Time/clock.
   - [ ] TCP sockets.
   - [ ] TLS story, either native or via extension bridge.

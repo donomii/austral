@@ -1,0 +1,43 @@
+--
+-- Part of the Austral project, under the Apache License v2.0 with LLVM Exceptions.
+-- See LICENSE file for details.
+--
+-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+--
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address
+);
+import Standard.String (
+    String
+);
+import Standard.OS.Text (
+    stringToOwnedText,
+    literalToOwnedText,
+    ownedTextToString,
+    destroyOwnedText,
+    textIsNull
+);
+
+module body Standard.OS.Environment is
+    function getOwned(nameText: Address[Nat8]): Option[String] is
+        let valueText: Address[Nat8] := @embed(Address[Nat8], "au_os_getenv((const char*)$1)", nameText);
+        destroyOwnedText(nameText);
+        if textIsNull(valueText) then
+            return None();
+        else
+            let value: String := ownedTextToString(valueText);
+            return Some(value => value);
+        end if;
+    end;
+
+    generic [R: Region]
+    function get(name: &[String, R]): Option[String] is
+        return getOwned(stringToOwnedText(name));
+    end;
+
+    function getLiteral(name: Span[Nat8, Static]): Option[String] is
+        return getOwned(literalToOwnedText(name));
+    end;
+end module body.
