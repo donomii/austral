@@ -1,0 +1,575 @@
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address
+);
+import TestPrograms.Runner.Support (
+    nullText,
+    textFromSpan,
+    textDestroy,
+    textIsNull,
+    textIsEmpty,
+    textEquals,
+    textContains,
+    textStrip,
+    textTrimLines,
+    argumentEquals,
+    argumentIsFlag,
+    listDirectories,
+    dirListLength,
+    dirListGet,
+    dirListDestroy,
+    pathJoin,
+    pathJoinLiteral,
+    tempCPath,
+    tempBinPath,
+    readFileTrim,
+    readFileRaw,
+    writeFile,
+    defaultCompileCommand,
+    cliCompileCommand,
+    cCompilerCommand,
+    binaryCommand,
+    runCommand,
+    commandExitCode,
+    commandStdout,
+    commandStderr,
+    commandDestroy,
+    printResult,
+    resetFailures,
+    beginFailureDetails,
+    appendFailureOutput,
+    endFailureDetails
+);
+
+module body TestPrograms.Runner.Main is
+    function hasFlag(flag: Span[Nat8, Static]): Bool is
+        if argumentCount() > 1 then
+            for i from 1 to argumentCount() - 1 do
+                if argumentEquals(i, flag) then
+                    return true;
+                end if;
+            end for;
+        end if;
+        return false;
+    end;
+
+    function positionalArgument(target: Index): Address[Nat8] is
+        var seen: Index := 0;
+        if argumentCount() > 1 then
+            for i from 1 to argumentCount() - 1 do
+                if not argumentIsFlag(i) then
+                    if seen = target then
+                        return textFromSpan(nthArgument(i));
+                    else
+                        seen := seen + 1;
+                    end if;
+                end if;
+            end for;
+        end if;
+        return nullText();
+    end;
+
+    function matchesPattern(value: Address[Nat8], pattern: Address[Nat8]): Bool is
+        if textIsNull(pattern) then
+            return true;
+        else
+            return textContains(value, pattern);
+        end if;
+    end;
+
+    function readExpectedFile(path: Address[Nat8]): Address[Nat8] is
+        let contents: Address[Nat8] := readFileTrim(path);
+        if not textIsNull(contents) then
+            if textIsEmpty(contents) then
+                abort("expected test control file exists but is empty");
+            end if;
+        end if;
+        return contents;
+    end;
+
+    function compileCommandFor(testDir: Address[Nat8], cPath: Address[Nat8], cli: Address[Nat8]): Address[Nat8] is
+        if textIsNull(cli) then
+            return defaultCompileCommand(testDir, cPath);
+        else
+            return cliCompileCommand(cli, testDir, cPath);
+        end if;
+    end;
+
+    function fail(
+        suite: Address[Nat8],
+        test: Address[Nat8],
+        cPath: Address[Nat8],
+        binPath: Address[Nat8],
+        australCommand: Address[Nat8],
+        cCommand: Address[Nat8],
+        reason: Span[Nat8, Static],
+        labelOne: Span[Nat8, Static],
+        valueOne: Address[Nat8],
+        labelTwo: Span[Nat8, Static],
+        valueTwo: Address[Nat8],
+        labelThree: Span[Nat8, Static],
+        valueThree: Address[Nat8]
+    ): Bool is
+        printResult(suite, test, false);
+        beginFailureDetails(
+            suite,
+            test,
+            cPath,
+            binPath,
+            australCommand,
+            cCommand,
+            reason
+        );
+        appendFailureOutput(labelOne, valueOne);
+        appendFailureOutput(labelTwo, valueTwo);
+        appendFailureOutput(labelThree, valueThree);
+        endFailureDetails();
+        return false;
+    end;
+
+    function pass(suite: Address[Nat8], test: Address[Nat8]): Bool is
+        printResult(suite, test, true);
+        return true;
+    end;
+
+    function compileGeneratedC(cPath: Address[Nat8], binPath: Address[Nat8]): Address[Nat8] is
+        return cCompilerCommand(cPath, binPath);
+    end;
+
+    function runSuccessTest(
+        suite: Address[Nat8],
+        test: Address[Nat8],
+        testDir: Address[Nat8],
+        cPath: Address[Nat8],
+        binPath: Address[Nat8],
+        cli: Address[Nat8],
+        programStdin: Address[Nat8],
+        expectedOutput: Address[Nat8]
+    ): Bool is
+        let compileCommand: Address[Nat8] := compileCommandFor(testDir, cPath, cli);
+        let compileResult: Address[Nat8] := runCommand(compileCommand, nullText());
+        if commandExitCode(compileResult) /= 0 then
+            let compilerStdout: Address[Nat8] := commandStdout(compileResult);
+            let compilerStderr: Address[Nat8] := commandStderr(compileResult);
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                nullText(),
+                "Austral compilation failed, but was expected to succeed.",
+                "AUSTRAL STDOUT",
+                compilerStdout,
+                "AUSTRAL STDERR",
+                compilerStderr,
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let ccCommand: Address[Nat8] := compileGeneratedC(cPath, binPath);
+        let ccResult: Address[Nat8] := runCommand(ccCommand, nullText());
+        if commandExitCode(ccResult) /= 0 then
+            let ccStdout: Address[Nat8] := commandStdout(ccResult);
+            let ccStderr: Address[Nat8] := commandStderr(ccResult);
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                ccCommand,
+                "C compilation failed, but was expected to succeed.",
+                "CC STDOUT",
+                ccStdout,
+                "CC STDERR",
+                ccStderr,
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let runBinCommand: Address[Nat8] := binaryCommand(binPath);
+        let runResult: Address[Nat8] := runCommand(runBinCommand, programStdin);
+        if commandExitCode(runResult) /= 0 then
+            let stdout: Address[Nat8] := commandStdout(runResult);
+            let stderr: Address[Nat8] := commandStderr(runResult);
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                ccCommand,
+                "Program terminated abnormally.",
+                "STDOUT",
+                stdout,
+                "STDERR",
+                stderr,
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let rawStdout: Address[Nat8] := commandStdout(runResult);
+        let stdout: Address[Nat8] := textStrip(rawStdout);
+        if not textIsEmpty(stdout) then
+            if not textIsNull(expectedOutput) then
+                if textEquals(stdout, expectedOutput) then
+                    return pass(suite, test);
+                else
+                    let ok: Bool := fail(
+                        suite,
+                        test,
+                        cPath,
+                        binPath,
+                        compileCommand,
+                        ccCommand,
+                        "Program produced the wrong stdout.",
+                        "ACTUAL STDOUT",
+                        stdout,
+                        "EXPECTED STDOUT",
+                        expectedOutput,
+                        "",
+                        nullText()
+                    );
+                    return ok;
+                end if;
+            else
+                let ok: Bool := fail(
+                    suite,
+                    test,
+                    cPath,
+                    binPath,
+                    compileCommand,
+                    ccCommand,
+                    "Program produced stdout, which we did not expect.",
+                    "STDOUT",
+                    stdout,
+                    "",
+                    nullText(),
+                    "",
+                    nullText()
+                );
+                return ok;
+            end if;
+        else
+            if not textIsNull(expectedOutput) then
+                let ok: Bool := fail(
+                    suite,
+                    test,
+                    cPath,
+                    binPath,
+                    compileCommand,
+                    ccCommand,
+                    "Program did not produce stdout, but we expected it.",
+                    "EXPECTED OUTPUT",
+                    expectedOutput,
+                    "",
+                    nullText(),
+                    "",
+                    nullText()
+                );
+                return ok;
+            else
+                return pass(suite, test);
+            end if;
+        end if;
+    end;
+
+    function runCompilerFailureTest(
+        suite: Address[Nat8],
+        test: Address[Nat8],
+        testDir: Address[Nat8],
+        cPath: Address[Nat8],
+        binPath: Address[Nat8],
+        cli: Address[Nat8],
+        expectedErrorPath: Address[Nat8],
+        expectedError: Address[Nat8],
+        replaceStderr: Bool
+    ): Bool is
+        let compileCommand: Address[Nat8] := compileCommandFor(testDir, cPath, cli);
+        let compileResult: Address[Nat8] := runCommand(compileCommand, nullText());
+        if commandExitCode(compileResult) = 0 then
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                nullText(),
+                "Austral compiler succeeded, but was expected to fail.",
+                "EXPECTED STDERR",
+                expectedError,
+                "",
+                nullText(),
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let rawStderr: Address[Nat8] := commandStderr(compileResult);
+        let actualStderr: Address[Nat8] := textTrimLines(rawStderr);
+        if replaceStderr then
+            if not writeFile(expectedErrorPath, actualStderr) then
+                abort("failed to replace expected stderr");
+            end if;
+            return pass(suite, test);
+        else
+            let expectedTrimmed: Address[Nat8] := textTrimLines(expectedError);
+            if textEquals(actualStderr, expectedTrimmed) then
+                return pass(suite, test);
+            else
+                let ok: Bool := fail(
+                    suite,
+                    test,
+                    cPath,
+                    binPath,
+                    compileCommand,
+                    nullText(),
+                    "Austral compiler failed, but compiler output does not match what we expected.",
+                    "EXPECTED STDERR",
+                    expectedError,
+                    "ACTUAL STDERR",
+                    actualStderr,
+                    "",
+                    nullText()
+                );
+                return ok;
+            end if;
+        end if;
+    end;
+
+    function runProgramFailureTest(
+        suite: Address[Nat8],
+        test: Address[Nat8],
+        testDir: Address[Nat8],
+        cPath: Address[Nat8],
+        binPath: Address[Nat8],
+        cli: Address[Nat8],
+        programStdin: Address[Nat8],
+        expectedProgramStderr: Address[Nat8]
+    ): Bool is
+        let compileCommand: Address[Nat8] := compileCommandFor(testDir, cPath, cli);
+        let compileResult: Address[Nat8] := runCommand(compileCommand, nullText());
+        if commandExitCode(compileResult) /= 0 then
+            let compilerStdout: Address[Nat8] := commandStdout(compileResult);
+            let compilerStderr: Address[Nat8] := commandStderr(compileResult);
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                nullText(),
+                "Austral compilation failed, but was expected to succeed.",
+                "AUSTRAL STDOUT",
+                compilerStdout,
+                "AUSTRAL STDERR",
+                compilerStderr,
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let ccCommand: Address[Nat8] := compileGeneratedC(cPath, binPath);
+        let ccResult: Address[Nat8] := runCommand(ccCommand, nullText());
+        if commandExitCode(ccResult) /= 0 then
+            let ccStdout: Address[Nat8] := commandStdout(ccResult);
+            let ccStderr: Address[Nat8] := commandStderr(ccResult);
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                ccCommand,
+                "C compilation failed, but was expected to succeed.",
+                "CC STDOUT",
+                ccStdout,
+                "CC STDERR",
+                ccStderr,
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let runBinCommand: Address[Nat8] := binaryCommand(binPath);
+        let runResult: Address[Nat8] := runCommand(runBinCommand, programStdin);
+        if commandExitCode(runResult) = 0 then
+            let stdout: Address[Nat8] := commandStdout(runResult);
+            let stderr: Address[Nat8] := commandStderr(runResult);
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                ccCommand,
+                "Program terminated successfully, but we expected a failure.",
+                "STDOUT",
+                stdout,
+                "STDERR",
+                stderr,
+                "",
+                nullText()
+            );
+            return ok;
+        end if;
+
+        let rawStderr: Address[Nat8] := commandStderr(runResult);
+        let stderr: Address[Nat8] := textStrip(rawStderr);
+        if textIsEmpty(stderr) then
+            let ok: Bool := fail(
+                suite,
+                test,
+                cPath,
+                binPath,
+                compileCommand,
+                ccCommand,
+                "Program did not produce stderr, but we expected stderr.",
+                "EXPECTED STDERR",
+                expectedProgramStderr,
+                "",
+                nullText(),
+                "",
+                nullText()
+            );
+            return ok;
+        else
+            if textEquals(stderr, expectedProgramStderr) then
+                return pass(suite, test);
+            else
+                let ok: Bool := fail(
+                    suite,
+                    test,
+                    cPath,
+                    binPath,
+                    compileCommand,
+                    ccCommand,
+                    "Program produced stderr, but it was not what we expected.",
+                    "ACTUAL STDERR",
+                    stderr,
+                    "EXPECTED STDERR",
+                    expectedProgramStderr,
+                    "",
+                    nullText()
+                );
+                return ok;
+            end if;
+        end if;
+    end;
+
+    function runTest(
+        suite: Address[Nat8],
+        test: Address[Nat8],
+        suiteDir: Address[Nat8],
+        suitePattern: Address[Nat8],
+        testPattern: Address[Nat8],
+        replaceStderr: Bool
+    ): Bool is
+        if not matchesPattern(suite, suitePattern) then
+            return true;
+        end if;
+        if not matchesPattern(test, testPattern) then
+            return true;
+        end if;
+
+        let testDir: Address[Nat8] := pathJoin(suiteDir, test);
+        let cPath: Address[Nat8] := tempCPath(suite, test);
+        let binPath: Address[Nat8] := tempBinPath(suite, test);
+
+        let expectedErrorPath: Address[Nat8] := pathJoinLiteral(testDir, "austral-stderr.txt");
+        let expectedOutputPath: Address[Nat8] := pathJoinLiteral(testDir, "program-stdout.txt");
+        let programStderrPath: Address[Nat8] := pathJoinLiteral(testDir, "program-stderr.txt");
+        let programStdinPath: Address[Nat8] := pathJoinLiteral(testDir, "program-stdin.txt");
+        let cliPath: Address[Nat8] := pathJoinLiteral(testDir, "cli.txt");
+
+        let expectedError: Address[Nat8] := readExpectedFile(expectedErrorPath);
+        let expectedOutput: Address[Nat8] := readExpectedFile(expectedOutputPath);
+        let programStderr: Address[Nat8] := readExpectedFile(programStderrPath);
+        let programStdin: Address[Nat8] := readFileRaw(programStdinPath);
+        let cli: Address[Nat8] := readExpectedFile(cliPath);
+
+        if (not textIsNull(expectedError)) and (not textIsNull(expectedOutput)) then
+            abort("test cannot have both austral-stderr.txt and program-stdout.txt");
+        end if;
+
+        if not textIsNull(expectedError) then
+            return runCompilerFailureTest(
+                suite,
+                test,
+                testDir,
+                cPath,
+                binPath,
+                cli,
+                expectedErrorPath,
+                expectedError,
+                replaceStderr
+            );
+        else
+            if not textIsNull(expectedOutput) then
+                return runSuccessTest(suite, test, testDir, cPath, binPath, cli, programStdin, expectedOutput);
+            else
+                if textIsNull(programStderr) then
+                    return runSuccessTest(suite, test, testDir, cPath, binPath, cli, programStdin, nullText());
+                else
+                    return runProgramFailureTest(suite, test, testDir, cPath, binPath, cli, programStdin, programStderr);
+                end if;
+            end if;
+        end if;
+    end;
+
+    function runAll(replaceStderr: Bool, suitePattern: Address[Nat8], testPattern: Address[Nat8]): Bool is
+        printLn("Collecting...");
+        let root: Address[Nat8] := textFromSpan("test-programs");
+        let suitesDir: Address[Nat8] := pathJoinLiteral(root, "suites");
+        let suites: Address[Nat8] := listDirectories(suitesDir);
+        var allPassed: Bool := true;
+
+        printLn("Running...");
+        if dirListLength(suites) > 0 then
+            for suiteIndex from 0 to dirListLength(suites) - 1 do
+                let suite: Address[Nat8] := dirListGet(suites, suiteIndex);
+                let suiteDir: Address[Nat8] := pathJoin(suitesDir, suite);
+                let tests: Address[Nat8] := listDirectories(suiteDir);
+                if dirListLength(tests) > 0 then
+                    for testIndex from 0 to dirListLength(tests) - 1 do
+                        let test: Address[Nat8] := dirListGet(tests, testIndex);
+                        if not runTest(suite, test, suiteDir, suitePattern, testPattern, replaceStderr) then
+                            allPassed := false;
+                        end if;
+                    end for;
+                end if;
+            end for;
+        end if;
+
+        return allPassed;
+    end;
+
+    function main(root: RootCapability): ExitCode is
+        resetFailures();
+        let replaceStderr: Bool := hasFlag("--replace-stderr");
+        let suitePattern: Address[Nat8] := positionalArgument(0);
+        let testPattern: Address[Nat8] := positionalArgument(1);
+        let ok: Bool := runAll(replaceStderr, suitePattern, testPattern);
+        surrenderRoot(root);
+        if ok then
+            printLn("");
+            printLn("All tests passed");
+            return ExitSuccess();
+        else
+            printLn("");
+            printLn("Some tests failed");
+            return ExitFailure();
+        end if;
+    end;
+end module body.

@@ -1,0 +1,3 @@
+module TestPrograms.Runner.Main is
+    function main(root: RootCapability): ExitCode;
+end module.

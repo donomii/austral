@@ -197,6 +197,13 @@ Sources reviewed:
   - [ ] Support compile-fail tests.
   - [ ] Support generated-C compile tests.
 
+- [x] Rewrite the compiler end-to-end test runner in Austral.
+  - [x] Keep runner control flow in Austral.
+  - [x] Provide filesystem, environment, and subprocess primitives through a
+        small unsafe C support file.
+  - [x] Build the runner with `make -C test-programs runner`.
+  - [x] Use the Austral runner in CI.
+
 - [ ] Add package/dependency metadata.
   - [x] Package name/version.
   - [x] Module roots.
