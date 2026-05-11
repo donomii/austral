@@ -17,6 +17,10 @@ RUNNER_DEPS := \
 .PHONY: runner
 runner: $(RUNNER_BIN)
 
+.PHONY: test
+test: $(RUNNER_BIN)
+	./$(RUNNER_BIN)
+
 $(RUNNER_BIN): $(RUNNER_DEPS) runner_support.c runner_support.h ../austral
 	../austral compile $(RUNNER_MODULES) --entrypoint=TestPrograms.Runner.Main:main --target-type=c --output=$(RUNNER_C) --error-format=json
 	$(CC) -fwrapv -Wno-builtin-declaration-mismatch -include runner_support.h $(RUNNER_C) runner_support.c -lm -o $(RUNNER_BIN)
