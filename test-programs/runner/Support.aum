@@ -1,0 +1,179 @@
+pragma Unsafe_Module;
+
+import Austral.Memory (
+    Address
+);
+
+module body TestPrograms.Runner.Support is
+    function nullText(): Address[Nat8] is
+        return @embed(Address[Nat8], "NULL");
+    end;
+
+    function textFromSpan(value: Span[Nat8, Static]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_text_from_bytes(($1).data, ($1).size)", value);
+    end;
+
+    function textDestroy(text: Address[Nat8]): Unit is
+        let code: Int32 := @embed(Int32, "tr_text_free($1)", text);
+        return nil;
+    end;
+
+    function textIsNull(text: Address[Nat8]): Bool is
+        return @embed(Bool, "tr_text_is_null($1)", text);
+    end;
+
+    function textIsEmpty(text: Address[Nat8]): Bool is
+        return @embed(Bool, "tr_text_is_empty($1)", text);
+    end;
+
+    function textEquals(left: Address[Nat8], right: Address[Nat8]): Bool is
+        return @embed(Bool, "tr_text_equals($1, $2)", left, right);
+    end;
+
+    function textContains(text: Address[Nat8], pattern: Address[Nat8]): Bool is
+        return @embed(Bool, "tr_text_contains($1, $2)", text, pattern);
+    end;
+
+    function textStrip(text: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_text_strip($1)", text);
+    end;
+
+    function textTrimLines(text: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_text_trim_lines($1)", text);
+    end;
+
+    function argumentEquals(index: Index, value: Span[Nat8, Static]): Bool is
+        let arg: Span[Nat8, Static] := nthArgument(index);
+        return @embed(Bool, "tr_bytes_equal(($1).data, ($1).size, ($2).data, ($2).size)", arg, value);
+    end;
+
+    function argumentIsFlag(index: Index): Bool is
+        let arg: Span[Nat8, Static] := nthArgument(index);
+        return @embed(Bool, "tr_bytes_starts_with(($1).data, ($1).size, (const unsigned char*)\"--\", 2)", arg);
+    end;
+
+    function listDirectories(path: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_list_directories($1)", path);
+    end;
+
+    function dirListLength(list: Address[Nat8]): Index is
+        return @embed(Index, "tr_dir_list_length($1)", list);
+    end;
+
+    function dirListGet(list: Address[Nat8], index: Index): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_dir_list_get($1, $2)", list, index);
+    end;
+
+    function dirListDestroy(list: Address[Nat8]): Unit is
+        let code: Int32 := @embed(Int32, "tr_dir_list_free($1)", list);
+        return nil;
+    end;
+
+    function pathJoin(parent: Address[Nat8], child: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_path_join($1, $2)", parent, child);
+    end;
+
+    function pathJoinLiteral(parent: Address[Nat8], child: Span[Nat8, Static]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_path_join_bytes($1, ($2).data, ($2).size)", parent, child);
+    end;
+
+    function tempCPath(suite: Address[Nat8], test: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_temp_path($1, $2, (const unsigned char*)\".c\", 2)", suite, test);
+    end;
+
+    function tempBinPath(suite: Address[Nat8], test: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_temp_path($1, $2, (const unsigned char*)\".bin\", 4)", suite, test);
+    end;
+
+    function readFileTrim(path: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_read_file_trim($1)", path);
+    end;
+
+    function readFileRaw(path: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_read_file_raw($1)", path);
+    end;
+
+    function writeFile(path: Address[Nat8], contents: Address[Nat8]): Bool is
+        return @embed(Bool, "tr_write_file($1, $2)", path, contents);
+    end;
+
+    function defaultCompileCommand(testDir: Address[Nat8], cPath: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_default_compile_command($1, $2)", testDir, cPath);
+    end;
+
+    function cliCompileCommand(cli: Address[Nat8], testDir: Address[Nat8], cPath: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_cli_compile_command($1, $2, $3)", cli, testDir, cPath);
+    end;
+
+    function cCompilerCommand(cPath: Address[Nat8], binPath: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_c_compiler_command($1, $2)", cPath, binPath);
+    end;
+
+    function binaryCommand(binPath: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_binary_command($1)", binPath);
+    end;
+
+    function runCommand(command: Address[Nat8], stdin: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_run_command($1, $2)", command, stdin);
+    end;
+
+    function commandExitCode(result: Address[Nat8]): Int32 is
+        return @embed(Int32, "tr_command_exit_code($1)", result);
+    end;
+
+    function commandStdout(result: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_command_stdout($1)", result);
+    end;
+
+    function commandStderr(result: Address[Nat8]): Address[Nat8] is
+        return @embed(Address[Nat8], "tr_command_stderr($1)", result);
+    end;
+
+    function commandDestroy(result: Address[Nat8]): Unit is
+        let code: Int32 := @embed(Int32, "tr_command_free($1)", result);
+        return nil;
+    end;
+
+    function printResult(suite: Address[Nat8], test: Address[Nat8], passed: Bool): Unit is
+        let code: Int32 := @embed(Int32, "tr_print_result($1, $2, $3)", suite, test, passed);
+        return nil;
+    end;
+
+    function resetFailures(): Unit is
+        let code: Int32 := @embed(Int32, "tr_reset_failures()");
+        return nil;
+    end;
+
+    function beginFailureDetails(
+        suite: Address[Nat8],
+        test: Address[Nat8],
+        cPath: Address[Nat8],
+        binPath: Address[Nat8],
+        australCommand: Address[Nat8],
+        cCommand: Address[Nat8],
+        reason: Span[Nat8, Static]
+    ): Unit is
+        let code: Int32 := @embed(
+            Int32,
+            "tr_begin_failure_details($1, $2, $3, $4, $5, $6, ($7).data, ($7).size)",
+            suite,
+            test,
+            cPath,
+            binPath,
+            australCommand,
+            cCommand,
+            reason
+        );
+        return nil;
+    end;
+
+    function appendFailureOutput(label: Span[Nat8, Static], value: Address[Nat8]): Unit is
+        let code: Int32 := @embed(Int32, "tr_append_failure_output(($1).data, ($1).size, $2)", label, value);
+        return nil;
+    end;
+
+    function endFailureDetails(): Unit is
+        let code: Int32 := @embed(Int32, "tr_end_failure_details()");
+        return nil;
+    end;
+end module body.

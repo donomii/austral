@@ -1,6 +1,7 @@
 _build
 **/build/
 austral
+test-programs/austral-test-runner
 calltree.html
 error.html
 *~

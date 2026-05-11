@@ -27,7 +27,23 @@ Each test directory contains some Austral source files (in the simplest cases, `
 
 Suite and test directories are numbered so that tests run in a predictable order.
 
-The `runner.py` script runs the tests.
+The `austral-test-runner` binary runs the tests. Build it from the repository
+root with:
+
+```sh
+make -C test-programs runner
+```
+
+Then run all end-to-end tests with:
+
+```sh
+test-programs/austral-test-runner
+```
+
+The runner is written in Austral under `test-programs/runner/`. Its small C
+support file, `test-programs/runner_support.c`, provides the filesystem,
+environment, and subprocess primitives that Austral does not expose in the
+standard library yet.
 
 ## Generated C Compiler
 
@@ -45,6 +61,6 @@ toolchains:
 For example:
 
 ```sh
-AUSTRAL_CC=clang python3 test-programs/runner.py
-AUSTRAL_CC=gcc AUSTRAL_CFLAGS="-Wall -Wextra" python3 test-programs/runner.py
+AUSTRAL_CC=clang test-programs/austral-test-runner
+AUSTRAL_CC=gcc AUSTRAL_CFLAGS="-Wall -Wextra" test-programs/austral-test-runner
 ```
