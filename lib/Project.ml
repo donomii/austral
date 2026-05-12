@@ -57,6 +57,18 @@ module Errors = struct
   let unknown_test ~path ~name =
     invalid_project ~path ~message:("Unknown test `" ^ name ^ "`.")
 
+  let unknown_test_expectation ~path ~value =
+    invalid_project ~path ~message:("Unknown test expectation `" ^ value ^ "`. Expected `pass`, `compile-fail`, or `run-fail`.")
+
+  let test_run_requires_executable ~path ~name =
+    invalid_project ~path ~message:("Test `" ^ name ^ "` can only set `run` to true for executable targets.")
+
+  let compile_fail_cannot_run ~path ~name =
+    invalid_project ~path ~message:("Test `" ^ name ^ "` expects compiler failure and cannot also run a binary.")
+
+  let output_expectation_requires_run ~path ~name ~field =
+    invalid_project ~path ~message:("Test `" ^ name ^ "` sets `" ^ field ^ "`, but `run` is false.")
+
   let no_entrypoint_wrong_target ~path =
     invalid_project ~path ~message:"`no-entrypoint` requires target type `c`."
 
@@ -91,13 +103,25 @@ type target_config =
       entrypoint: entrypoint option;
     }
 
+type test_expectation =
+  | ExpectPass
+  | ExpectCompileFail
+  | ExpectRunFail
+
 type test_config =
   TestConfig of {
       test_name: string;
       source_directories: string list;
       modules: string list;
+      target_type: string option;
       output_path: string option;
       entrypoint: entrypoint option;
+      run: bool option;
+      expectation: test_expectation;
+      expected_stdout_path: string option;
+      expected_stderr_path: string option;
+      expected_compiler_stderr_path: string option;
+      stdin_path: string option;
     }
 
 type project =
@@ -120,8 +144,13 @@ type test_spec =
   TestSpec of {
       test_name: string;
       modules: mod_source list;
-      output_path: string;
-      entrypoint: entrypoint;
+      target: target;
+      run_binary_path: string option;
+      expectation: test_expectation;
+      expected_stdout_path: string option;
+      expected_stderr_path: string option;
+      expected_compiler_stderr_path: string option;
+      stdin_path: string option;
     }
 
 type module_info =
@@ -154,6 +183,15 @@ let string_field_opt ~(path: string) ~(field: string) (json: Yojson.Basic.t): st
   | None ->
      None
 
+let bool_field_opt ~(path: string) ~(field: string) (json: Yojson.Basic.t): bool option =
+  match assoc_opt field json with
+  | Some (`Bool value) ->
+     Some value
+  | Some _ ->
+     Errors.expected_field ~path ~field ~expected:"a boolean"
+  | None ->
+     None
+
 let string_list_field ~(path: string) ~(field: string) ~(default: string list) (json: Yojson.Basic.t): string list =
   match assoc_opt field json with
   | Some (`List values) ->
@@ -183,6 +221,17 @@ let parse_entrypoint_field ~(path: string) ~(field: string) (json: Yojson.Basic.
   | None ->
      None
 
+let parse_test_expectation ~(path: string) (json: Yojson.Basic.t): test_expectation =
+  match string_field_opt ~path ~field:"expect" json with
+  | None | Some "pass" ->
+     ExpectPass
+  | Some "compile-fail" ->
+     ExpectCompileFail
+  | Some "run-fail" ->
+     ExpectRunFail
+  | Some value ->
+     Errors.unknown_test_expectation ~path ~value
+
 let parse_source_config ~(path: string) (json: Yojson.Basic.t): source_config =
   SourceConfig {
       source_directories = string_list_field ~path ~field:"sourceDirectories" ~default:["src"] json;
@@ -210,8 +259,15 @@ let parse_test_config ~(path: string) ~(common: source_config) (json: Yojson.Bas
       test_name = name;
       source_directories = string_list_field ~path ~field:"sourceDirectories" ~default:source_directories json;
       modules = string_list_field ~path ~field:"modules" ~default:modules json;
+      target_type = string_field_opt ~path ~field:"targetType" json;
       output_path = string_field_opt ~path ~field:"output" json;
       entrypoint = parse_entrypoint_field ~path ~field:"entrypoint" json;
+      run = bool_field_opt ~path ~field:"run" json;
+      expectation = parse_test_expectation ~path json;
+      expected_stdout_path = string_field_opt ~path ~field:"expectedStdout" json;
+      expected_stderr_path = string_field_opt ~path ~field:"expectedStderr" json;
+      expected_compiler_stderr_path = string_field_opt ~path ~field:"expectedCompilerStderr" json;
+      stdin_path = string_field_opt ~path ~field:"stdin" json;
     }
 
 let load (path: string): project =
@@ -525,29 +581,109 @@ let build_spec (project: project) (options: build_options): build_spec =
       target = make_target ~path ~base_dir ~package_name ~target_name:"build" ~config:build ~options;
     }
 
+let resolve_optional_path (base_dir: string) (path: string option): string option =
+  match path with
+  | Some path -> Some (resolve_path base_dir path)
+  | None -> None
+
+let test_package_name (package_name: string option) (test_name: string): string option =
+  let package =
+    match package_name with
+    | Some name -> name
+    | None -> "austral"
+  in
+  Some (package ^ "-" ^ test_name)
+
 let test_spec_of_config ~(path: string) ~(base_dir: string) ~(package_name: string option) (config: test_config): test_spec =
-  let (TestConfig { test_name; source_directories; modules; output_path; entrypoint }) = config in
-  let entrypoint =
-    match entrypoint with
-    | Some entrypoint -> entrypoint
-    | None -> Errors.missing_entrypoint ~path ~name:test_name
+  let (TestConfig {
+           test_name;
+           source_directories;
+           modules;
+           target_type;
+           output_path;
+           entrypoint;
+           run;
+           expectation;
+           expected_stdout_path;
+           expected_stderr_path;
+           expected_compiler_stderr_path;
+           stdin_path;
+         }) = config in
+  let target_config =
+    TargetConfig {
+        source_directories;
+        modules;
+        target_type;
+        output_path;
+        entrypoint;
+      }
   in
-  let output_path =
-    match output_path with
-    | Some output_path -> output_path
-    | None ->
-       let package =
-         match package_name with
-         | Some name -> name
-         | None -> "austral"
-       in
-       Filename.concat "build" (package ^ "-" ^ test_name)
+  let options =
+    BuildOptions {
+        project_path = path;
+        target_type = None;
+        output_path = None;
+        entrypoint = None;
+        no_entrypoint = false;
+      }
   in
+  let target =
+    make_target
+      ~path
+      ~base_dir
+      ~package_name:(test_package_name package_name test_name)
+      ~target_name:test_name
+      ~config:target_config
+      ~options
+  in
+  let default_run =
+    match expectation, target with
+    | ExpectCompileFail, _ -> false
+    | _, Executable _ -> true
+    | _, _ -> false
+  in
+  let run =
+    match run with
+    | Some run -> run
+    | None -> default_run
+  in
+  if expectation = ExpectCompileFail && run then
+    Errors.compile_fail_cannot_run ~path ~name:test_name;
+  if not run then begin
+    match expected_stdout_path with
+    | Some _ -> Errors.output_expectation_requires_run ~path ~name:test_name ~field:"expectedStdout"
+    | None -> ()
+  end;
+  if not run then begin
+    match expected_stderr_path with
+    | Some _ -> Errors.output_expectation_requires_run ~path ~name:test_name ~field:"expectedStderr"
+    | None -> ()
+  end;
+  if not run then begin
+    match stdin_path with
+    | Some _ -> Errors.output_expectation_requires_run ~path ~name:test_name ~field:"stdin"
+    | None -> ()
+  end;
+  let run_binary_path =
+    if run then
+      match target with
+      | Executable { bin_path; _ } -> Some bin_path
+      | _ -> Errors.test_run_requires_executable ~path ~name:test_name
+    else
+      None
+  in
+  if expectation = ExpectRunFail && Option.is_none run_binary_path then
+    Errors.test_run_requires_executable ~path ~name:test_name;
   TestSpec {
       test_name;
       modules = modules_from_config ~path ~base_dir source_directories modules;
-      output_path = resolve_path base_dir output_path;
-      entrypoint;
+      target;
+      run_binary_path;
+      expectation;
+      expected_stdout_path = resolve_optional_path base_dir expected_stdout_path;
+      expected_stderr_path = resolve_optional_path base_dir expected_stderr_path;
+      expected_compiler_stderr_path = resolve_optional_path base_dir expected_compiler_stderr_path;
+      stdin_path = resolve_optional_path base_dir stdin_path;
     }
 
 let test_specs (project: project) (options: test_options): test_spec list =

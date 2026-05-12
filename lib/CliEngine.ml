@@ -14,6 +14,42 @@ open SourceContext
 open Project
 
 module Errors = struct
+  let project_compile_failed ~name ~stderr =
+    austral_raise CliError [
+      Text "Project test compilation failed.";
+      Break;
+      Text "Test: ";
+      Code name;
+      Break;
+      Text "Compiler error:\n";
+      Text stderr
+    ]
+
+  let project_compile_succeeded_unexpectedly ~name =
+    austral_raise CliError [
+      Text "Project test compilation succeeded, but failure was expected.";
+      Break;
+      Text "Test: ";
+      Code name
+    ]
+
+  let project_compiler_stderr_mismatch ~name ~expected_path ~expected ~actual =
+    austral_raise CliError [
+      Text "Project test compiler stderr did not match.";
+      Break;
+      Text "Test: ";
+      Code name;
+      Break;
+      Text "Expected file: ";
+      Code expected_path;
+      Break;
+      Text "Expected:\n";
+      Text expected;
+      Break;
+      Text "Actual:\n";
+      Text actual
+    ]
+
   let project_test_failed ~name ~command ~exit_code ~stdout ~stderr =
     austral_raise CliError [
       Text "Project test failed.";
@@ -33,6 +69,42 @@ module Errors = struct
       Text "Standard error:\n";
       Text stderr
     ]
+
+  let project_test_succeeded_unexpectedly ~name ~command ~stdout ~stderr =
+    austral_raise CliError [
+      Text "Project test program succeeded, but failure was expected.";
+      Break;
+      Text "Test: ";
+      Code name;
+      Break;
+      Text "Command: ";
+      Code command;
+      Break;
+      Text "Standard output:\n";
+      Text stdout;
+      Break;
+      Text "Standard error:\n";
+      Text stderr
+    ]
+
+  let project_output_mismatch ~name ~stream ~expected_path ~expected ~actual =
+    austral_raise CliError [
+      Text "Project test ";
+      Text stream;
+      Text " did not match.";
+      Break;
+      Text "Test: ";
+      Code name;
+      Break;
+      Text "Expected file: ";
+      Code expected_path;
+      Break;
+      Text "Expected:\n";
+      Text expected;
+      Break;
+      Text "Actual:\n";
+      Text actual
+    ]
 end
 
 (* Source map stuff *)
@@ -47,6 +119,10 @@ module SourceMap =
     )
 
 type source_map = string SourceMap.t
+
+type compile_outcome =
+  | CompileSucceeded
+  | CompileFailed of string
 
 (* Parsing file contents *)
 
@@ -190,15 +266,88 @@ and exec_project_test (options: test_options) (error_reporting_mode: error_repor
   List.iter (fun spec -> exec_test_spec spec error_reporting_mode) specs
 
 and exec_test_spec (spec: test_spec) (error_reporting_mode: error_reporting_mode): unit =
-  let (TestSpec { test_name; modules; output_path; entrypoint }) = spec in
+  let (TestSpec { test_name; modules; target; expectation; expected_compiler_stderr_path; _ }) = spec in
   Printf.printf "Running %s\n%!" test_name;
-  exec_compile modules (Executable { bin_path = output_path; entrypoint }) error_reporting_mode;
-  let output = run_command (Filename.quote output_path) in
-  let (CommandOutput { command; code; stdout; stderr }) = output in
-  if code <> 0 then
-    Errors.project_test_failed ~name:test_name ~command ~exit_code:code ~stdout ~stderr
-  else
-    ()
+  match compile_project_test modules target error_reporting_mode with
+  | CompileFailed stderr ->
+     (match expectation with
+      | ExpectCompileFail ->
+         compare_expected_compiler_stderr test_name expected_compiler_stderr_path stderr
+      | ExpectPass | ExpectRunFail ->
+         Errors.project_compile_failed ~name:test_name ~stderr)
+  | CompileSucceeded ->
+     (match expectation with
+      | ExpectCompileFail ->
+         Errors.project_compile_succeeded_unexpectedly ~name:test_name
+      | ExpectPass | ExpectRunFail ->
+         run_project_test spec)
+
+and run_project_test (spec: test_spec): unit =
+  let (TestSpec { test_name; run_binary_path; expectation; expected_stdout_path; expected_stderr_path; stdin_path; _ }) = spec in
+  match run_binary_path with
+  | None ->
+     ()
+  | Some path ->
+     let stdin =
+       match stdin_path with
+       | Some path -> read_file_to_string path
+       | None -> ""
+     in
+     let output = run_command_with_stdin (Filename.quote path) stdin in
+     let (CommandOutput { command; code; stdout; stderr }) = output in
+     compare_expected_output test_name "stdout" expected_stdout_path stdout;
+     compare_expected_output test_name "stderr" expected_stderr_path stderr;
+     match expectation with
+     | ExpectPass ->
+        if code <> 0 then
+          Errors.project_test_failed ~name:test_name ~command ~exit_code:code ~stdout ~stderr
+        else
+          ()
+     | ExpectRunFail ->
+        if code = 0 then
+          Errors.project_test_succeeded_unexpectedly ~name:test_name ~command ~stdout ~stderr
+        else
+          ()
+     | ExpectCompileFail ->
+        ()
+
+and compare_expected_output (test_name: string) (stream: string) (expected_path: string option) (actual: string): unit =
+  match expected_path with
+  | Some path ->
+     let expected = read_file_to_string path in
+     if expected = actual then
+       ()
+     else
+       Errors.project_output_mismatch ~name:test_name ~stream ~expected_path:path ~expected ~actual
+  | None ->
+     ()
+
+and compare_expected_compiler_stderr (test_name: string) (expected_path: string option) (actual: string): unit =
+  match expected_path with
+  | Some path ->
+     let expected = read_file_to_string path in
+     if expected = actual then
+       ()
+     else
+       Errors.project_compiler_stderr_mismatch ~name:test_name ~expected_path:path ~expected ~actual
+  | None ->
+     ()
+
+and render_compile_error (error: austral_error) (error_reporting_mode: error_reporting_mode) (source_map: source_map): string =
+  let error: austral_error = try_adding_source_ctx error source_map in
+  match error_reporting_mode with
+  | ErrorReportPlain ->
+     String.trim (render_error_to_plain error)
+  | ErrorReportJson ->
+     String.trim (Yojson.Basic.pretty_to_string (render_error_to_json error))
+
+and compile_project_test (modules: mod_source list) (target: target) (error_reporting_mode: error_reporting_mode): compile_outcome =
+  let (mods, source_map): (module_source list * source_map) = parse_source_files modules in
+  try
+    exec_target mods target;
+    CompileSucceeded
+  with Austral_error error ->
+    CompileFailed (render_compile_error error error_reporting_mode source_map)
 
 and exec_compile (modules: mod_source list) (target: target) (error_reporting_mode: error_reporting_mode): unit =
   (* Parse source files *)

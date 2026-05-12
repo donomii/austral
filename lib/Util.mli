@@ -69,6 +69,9 @@ type command_output =
 (** Run a shell command, and return its output. *)
 val run_command : string -> command_output
 
+(** Run a shell command with stdin, and return its output. *)
+val run_command_with_stdin : string -> string -> command_output
+
 (** Call the C compiler on the given file.
 
     The first argument is the source file path.

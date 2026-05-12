@@ -228,8 +228,10 @@ let get_exit_code = function
 type command_output =
   CommandOutput of { command: string; code: int; stdout: string; stderr: string }
 
-let run_command (command: string): command_output =
+let run_command_with_stdin (command: string) (input: string): command_output =
   let (stdout_chan, stdin_chan, stderr_chan) = open_process_full command [|"PATH=" ^ (getenv "PATH")|] in
+  output_string stdin_chan input;
+  close_out stdin_chan;
   let stdout = read_stream_to_string stdout_chan
   and stderr = read_stream_to_string stderr_chan in
   let proc_stat = close_process_full (stdout_chan, stdin_chan, stderr_chan) in
@@ -239,6 +241,9 @@ let run_command (command: string): command_output =
       stdout = stdout;
       stderr = stderr
     }
+
+let run_command (command: string): command_output =
+  run_command_with_stdin command ""
 
 let compile_c_code (source_path: string) (output_path: string): command_output =
   ensure_parent_directory output_path;
