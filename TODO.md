@@ -14,7 +14,7 @@ Sources reviewed:
 
 ## Immediate Correctness
 
-- [ ] Fix typeclass checking soundness.
+- [x] Fix typeclass checking soundness.
   - [x] Reject instances that omit required typeclass methods.
   - [x] Reject instance methods whose signatures do not match the typeclass.
   - [x] Add compile-fail tests for both cases.
@@ -41,7 +41,7 @@ Sources reviewed:
         or implement it if it is part of the intended typeclass model.
   - Related upstream issue: #564.
 
-- [ ] Improve parser edge cases and diagnostics.
+- [x] Improve parser edge cases and diagnostics.
   - [x] Empty borrow body should either parse or produce a clear diagnostic.
   - [x] Reserved names like `Region` should produce a clear diagnostic.
   - [x] Add parser error tests with source spans.
@@ -89,6 +89,11 @@ Sources reviewed:
   - [ ] Add sanitizer runs for generated C where possible.
   - [x] Treat C compiler warnings in the prelude as bugs.
 
+- [x] Reduce generated-C warning noise.
+  - [x] Render intentionally discarded expressions as `(void)(...)`.
+  - [x] Emit an unreachable `abort()` fallback for `case` switches whose
+        branches all return or abort.
+
 - [ ] Stabilize memory primitives.
   - [ ] Clarify `resizeArray`/`realloc` semantics in docs.
   - [ ] Add tests for buffer growth, move, copy, and deallocation paths.
@@ -96,7 +101,7 @@ Sources reviewed:
 
 ## Installation And Releases
 
-- [ ] Fix opam/dependency installation.
+- [x] Fix opam/dependency installation.
   - [x] Resolve missing `ppxlib = 0.25.0` report.
   - [x] Fill missing opam metadata: maintainer, authors, license.
   - [x] Resolve dependency constraints for modern OCaml switches.
@@ -130,6 +135,7 @@ Sources reviewed:
 
 - [ ] Harden core containers.
   - [ ] Buffer.
+  - [x] Fix buffer resize preservation.
   - [ ] String and byte string.
   - [ ] Map and set.
   - [ ] Queue/deque.
@@ -162,6 +168,8 @@ Sources reviewed:
 ## Concurrency
 
 - [ ] Integrate a first-class threading module.
+  - [x] Prototype a pthread-backed linear thread handle on the
+        `threading-system` branch.
   - [ ] Move owned linear values into threads.
   - [ ] Join threads exactly once.
   - [ ] Return owned results from joins.
