@@ -233,13 +233,80 @@ let test_named_test_selection _ =
   let project = load project_path in
   let options = TestOptions { project_path; test_name = Some "unit" } in
   match test_specs project options with
-  | [TestSpec { test_name; modules; output_path; entrypoint }] ->
+  | [TestSpec { test_name; modules; target; run_binary_path; expectation; _ }] ->
      assert_equal "unit" test_name;
      assert_bool "test module is resolved"
        (List.for_all2 equal_mod_source modules [ModuleBodySource { body_path = Filename.concat root "Test.aum" }]);
-     assert_equal (Filename.concat root "build/demo-unit") output_path;
-     assert_bool "entrypoint is parsed"
-       (equal_entrypoint entrypoint (Entrypoint (make_mod_name "Test", make_ident "main")))
+     let expected_target =
+       Executable {
+           bin_path = Filename.concat root "build/demo-unit";
+           entrypoint = Entrypoint (make_mod_name "Test", make_ident "main");
+         }
+     in
+     assert_bool "target is executable" (equal_target target expected_target);
+     assert_equal (Some (Filename.concat root "build/demo-unit")) run_binary_path;
+     assert_bool "test expects pass" (expectation = ExpectPass)
+  | _ ->
+     assert_failure "Expected one selected test"
+
+let test_compile_fail_test_config _ =
+  let root = temp_dir "austral_project_" in
+  let project_path = Filename.concat root "austral.json" in
+  write_file project_path {|
+{
+  "name": "demo",
+  "tests": [
+    {
+      "name": "bad",
+      "modules": ["Bad.aum"],
+      "targetType": "tc",
+      "expect": "compile-fail",
+      "expectedCompilerStderr": "expected/bad-stderr.txt"
+    }
+  ]
+}
+|};
+  let project = load project_path in
+  let options = TestOptions { project_path; test_name = Some "bad" } in
+  match test_specs project options with
+  | [TestSpec { test_name; target; run_binary_path; expectation; expected_compiler_stderr_path; _ }] ->
+     assert_equal "bad" test_name;
+     assert_bool "target is typecheck" (equal_target target TypeCheck);
+     assert_equal None run_binary_path;
+     assert_bool "test expects compiler failure" (expectation = ExpectCompileFail);
+     assert_equal (Some (Filename.concat root "expected/bad-stderr.txt")) expected_compiler_stderr_path
+  | _ ->
+     assert_failure "Expected one selected test"
+
+let test_compile_only_test_config _ =
+  let root = temp_dir "austral_project_" in
+  let project_path = Filename.concat root "austral.json" in
+  write_file project_path {|
+{
+  "name": "demo",
+  "tests": [
+    {
+      "name": "cgen",
+      "modules": ["Main.aum"],
+      "entrypoint": "Main:main",
+      "run": false
+    }
+  ]
+}
+|};
+  let project = load project_path in
+  let options = TestOptions { project_path; test_name = Some "cgen" } in
+  match test_specs project options with
+  | [TestSpec { target; run_binary_path; expectation; _ }] ->
+     let expected_target =
+       Executable {
+           bin_path = Filename.concat root "build/demo-cgen";
+           entrypoint = Entrypoint (make_mod_name "Main", make_ident "main");
+         }
+     in
+     assert_bool "target still compiles generated C" (equal_target target expected_target);
+     assert_equal None run_binary_path;
+     assert_bool "compile-only still expects pass" (expectation = ExpectPass)
   | _ ->
      assert_failure "Expected one selected test"
 
@@ -251,6 +318,8 @@ let suite =
       "explicit modules keep order" >:: test_explicit_modules_keep_order;
       "output override is cwd relative" >:: test_output_override_is_cwd_relative;
       "named test selection" >:: test_named_test_selection;
+      "compile-fail test config" >:: test_compile_fail_test_config;
+      "compile-only test config" >:: test_compile_only_test_config;
     ]
 
 let _ = run_test_tt_main suite

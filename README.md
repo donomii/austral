@@ -247,7 +247,8 @@ For multi-module programs, you can put the module list and entrypoint in an
       "name": "unit",
       "sourceDirectories": ["src", "test"],
       "entrypoint": "Test.Main:main",
-      "output": "build/unit"
+      "output": "build/unit",
+      "expectedStdout": "test/expected/unit.out"
     }
   ]
 }
@@ -291,6 +292,41 @@ Compile and run all project tests, or one named test:
 $ austral test
 $ austral test --name=unit
 ```
+
+Tests with entrypoints default to compiling an executable and running it; tests
+without entrypoints default to typechecking. Tests can also declare compiler
+failures, run failures, compile-only checks, and expected output:
+
+```json
+{
+  "tests": [
+    {
+      "name": "bad-program",
+      "modules": ["test/Bad.aum"],
+      "targetType": "tc",
+      "expect": "compile-fail",
+      "expectedCompilerStderr": "test/expected/bad-program.err"
+    },
+    {
+      "name": "generated-c",
+      "modules": ["test/GeneratedC.aum"],
+      "entrypoint": "GeneratedC:main",
+      "run": false
+    },
+    {
+      "name": "cli",
+      "modules": ["test/Cli.aum"],
+      "entrypoint": "Cli:main",
+      "stdin": "test/input/cli.in",
+      "expectedStdout": "test/expected/cli.out"
+    }
+  ]
+}
+```
+
+`expect` can be `pass`, `compile-fail`, or `run-fail`. `expectedStdout`,
+`expectedStderr`, `expectedCompilerStderr`, and `stdin` paths are resolved
+relative to the project file.
 
 ## Status
 

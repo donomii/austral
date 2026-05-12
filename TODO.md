@@ -193,10 +193,10 @@ Sources reviewed:
   - [x] Invoke the C compiler consistently.
   - [x] Support executable and library outputs.
 
-- [ ] Add `austral test`.
+- [x] Add `austral test`.
   - [x] Compile and run test modules.
-  - [ ] Support compile-fail tests.
-  - [ ] Support generated-C compile tests.
+  - [x] Support compile-fail tests.
+  - [x] Support generated-C compile tests.
 
 - [x] Rewrite the compiler end-to-end test runner in Austral.
   - [x] Keep runner control flow in Austral.
