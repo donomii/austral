@@ -76,7 +76,7 @@ Sources reviewed:
 ## Runtime And Generated C
 
 - [ ] Make the C prelude portable.
-  - [ ] Use normal C headers instead of hand-declared libc symbols where
+  - [x] Use normal C headers instead of hand-declared libc symbols where
         possible.
   - [ ] Fix OpenBSD stdio/linking behavior.
   - [ ] Audit `memcpy`, `memmove`, allocation, stdio, math, and process exit
@@ -87,7 +87,7 @@ Sources reviewed:
   - [x] Compile representative programs with Clang and GCC.
   - [ ] Run generated binaries on Linux and macOS.
   - [ ] Add sanitizer runs for generated C where possible.
-  - [ ] Treat C compiler warnings in the prelude as bugs.
+  - [x] Treat C compiler warnings in the prelude as bugs.
 
 - [ ] Stabilize memory primitives.
   - [ ] Clarify `resizeArray`/`realloc` semantics in docs.

@@ -208,7 +208,7 @@ module body TestPrograms.Runner.Support is
         let quotedBin: String := shellQuote(binPath);
         var builder: StringBuilder := makeStringBuilder();
         writeString(&!builder, &cc);
-        writeSpan(&!builder, " -fwrapv -Wno-builtin-declaration-mismatch");
+        writeSpan(&!builder, " -fwrapv");
         if not isEmpty(&cflags) then
             writeByte(&!builder, ' ');
             writeString(&!builder, &cflags);

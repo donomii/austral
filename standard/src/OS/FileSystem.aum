@@ -29,25 +29,25 @@ module body Standard.OS.FileSystem is
     generic [R: Region]
     function listDirectories(path: &[String, R]): DirectoryList is
         let pathText: Address[Nat8] := stringToOwnedText(path);
-        let handle: Address[Nat8] := @embed(Address[Nat8], "au_os_list_directories((const char*)$1)", pathText);
+        let handle: Address[Nat8] := @embed(Address[Nat8], "(au_nat8_t*)au_os_list_directories((const char*)$1)", pathText);
         destroyOwnedText(pathText);
         return DirectoryList(handle => handle);
     end;
 
     generic [R: Region]
     function directoryCount(entries: &[DirectoryList, R]): Index is
-        return @embed(Index, "au_os_dir_list_count($1)", entries->handle);
+        return @embed(Index, "au_os_dir_list_count((au_os_dir_list_t*)$1)", entries->handle);
     end;
 
     generic [R: Region]
     function directoryName(entries: &[DirectoryList, R], index: Index): String is
-        let nameText: Address[Nat8] := @embed(Address[Nat8], "au_os_dir_list_get($1, $2)", entries->handle, index);
+        let nameText: Address[Nat8] := @embed(Address[Nat8], "au_os_dir_list_get((au_os_dir_list_t*)$1, $2)", entries->handle, index);
         return ownedTextToString(nameText);
     end;
 
     function destroyDirectoryList(entries: DirectoryList): Unit is
         let { handle: Address[Nat8] } := entries;
-        let code: Int32 := @embed(Int32, "(au_os_dir_list_free($1), 0)", handle);
+        let code: Int32 := @embed(Int32, "(au_os_dir_list_free((au_os_dir_list_t*)$1), 0)", handle);
         return nil;
     end;
 

@@ -7,7 +7,12 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <dirent.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 /*
  * Austral types
@@ -55,71 +60,37 @@ au_span_t au_make_span_from_string(const char* data, size_t size) {
 }
 
 void* au_stdout() {
-#if defined(__APPLE__)
-  extern void* __stdoutp;
-  return __stdoutp;
-#else
-  extern void* stdout;
-  return stdout;
-#endif
+  return (void*) stdout;
 }
 
 void* au_stderr() {
-#if defined(__APPLE__)
-  extern void* __stderrp;
-  return __stderrp;
-#elif defined(__FreeBSD__)
-  extern void* __stderrp;
-  return __stderrp;
-#elif defined(__OpenBSD__)
-  extern void *__sF;
-  return &__sF[2];
-#else
-  extern void* stderr;
-  return stderr;
-#endif
+  return (void*) stderr;
 }
 
-extern void* au_stdin() {
-#if defined(__APPLE__)
-  extern void* __stdinp;
-  return __stdinp;
-#else
-  extern void* stdin;
-  return stdin;
-#endif
+void* au_stdin() {
+  return (void*) stdin;
 }
 
 au_unit_t au_abort_internal(const char* message) {
-  extern int fprintf(void* stream, const char* format, ...);
-  extern int fflush(void* stream);
-  extern void _Exit(int status);
+  FILE* stderr_stream = (FILE*) au_stderr();
 
-  void* stderr = au_stderr();
-
-  fprintf(stderr, "%s\n", message);
-  fflush(stderr);
+  fprintf(stderr_stream, "%s\n", message);
+  fflush(stderr_stream);
   _Exit(-1);
 
   return nil;
 }
 
 au_unit_t au_abort(au_span_t message) {
-  extern int fprintf(void* stream, const char* format, ...);
-  extern int fflush(void* stream);
-  extern void _Exit(int status);
+  FILE* stderr_stream = (FILE*) au_stderr();
 
-  void* stderr = au_stderr();
-
-  fprintf(stderr, "%s\n", (char*) message.data);
-  fflush(stderr);
+  fprintf(stderr_stream, "%s\n", (char*) message.data);
+  fflush(stderr_stream);
   _Exit(-1);
   return nil;
 }
 
 au_unit_t au_printf(const char* format, ...) {
-  extern int vprintf(const char* format, va_list arg);
-
   va_list args;
   va_start(args, format);
   vprintf(format, args);
@@ -128,15 +99,11 @@ au_unit_t au_printf(const char* format, ...) {
 }
 
 int au_os_fputc(int c, void* stream) {
-  extern int fputc(int c, void* stream);
-
-  return fputc(c, stream);
+  return fputc(c, (FILE*) stream);
 }
 
 int au_os_fgetc(void* stream) {
-  extern int fgetc(void* stream);
-
-  return fgetc(stream);
+  return fgetc((FILE*) stream);
 }
 
 void* au_array_index(au_span_t* array, size_t index, size_t elem_size) {
@@ -159,32 +126,22 @@ void* au_array_index(au_span_t* array, size_t index, size_t elem_size) {
  */
 
 void* au_calloc(size_t size, size_t count) {
-  extern void* calloc(size_t count, size_t size);
-
   return calloc(size, count);
 }
 
 void* au_realloc(void* ptr, size_t count) {
-  extern void* realloc(void *ptr, size_t size);
-
   return realloc(ptr, count);
 }
 
 void* au_memmove(void* destination, void* source, size_t count) {
-  extern void* memmove(void* destination, const void* source, size_t count);
-
   return memmove(destination, source, count);
 }
 
 void* au_memcpy(void* destination, void* source, size_t count) {
-  extern void* memcpy(void* destination, const void* source, size_t count);
-
   return memcpy(destination, source, count);
 }
 
 au_unit_t au_free(void* ptr) {
-  extern void free(void* ptr);
-
   free(ptr);
   return nil;
 };
@@ -230,6 +187,7 @@ size_t _au_bounded_strlen(char* string, size_t bound) {
     size++;
   }
   au_abort_internal("Command line argument exceeds maximum length of 10 kibibytes.");
+  return 0;
 }
 
 /* One kibibyte in bytes. */
@@ -265,9 +223,6 @@ au_span_t au_get_nth_arg(size_t n) {
  */
 
 char* au_os_text_from_bytes(const au_nat8_t* data, size_t size) {
-  extern void* malloc(size_t size);
-  extern void* memcpy(void* destination, const void* source, size_t count);
-
   char* result = (char*) malloc(size + 1);
   if (result == NULL) {
     au_abort_internal("au_os_text_from_bytes: allocation failed.");
@@ -280,14 +235,10 @@ char* au_os_text_from_bytes(const au_nat8_t* data, size_t size) {
 }
 
 void au_os_text_free(char* text) {
-  extern void free(void* ptr);
-
   free(text);
 }
 
 size_t au_os_text_length(const char* text) {
-  extern size_t strlen(const char* text);
-
   if (text == NULL) {
     return 0;
   }
@@ -302,8 +253,6 @@ au_nat8_t au_os_text_byte(const char* text, size_t index) {
 }
 
 static char* au_os_strdup(const char* text) {
-  extern size_t strlen(const char* text);
-
   if (text == NULL) {
     text = "";
   }
@@ -318,18 +267,12 @@ struct au_os_dir_list {
 };
 
 static int au_os_string_ptr_cmp(const void* left, const void* right) {
-  extern int strcmp(const char* left, const char* right);
-
   const char* const* a = (const char* const*) left;
   const char* const* b = (const char* const*) right;
   return strcmp(*a, *b);
 }
 
 char* au_os_path_join(const char* parent, const char* child) {
-  extern void* malloc(size_t size);
-  extern void* memcpy(void* destination, const void* source, size_t count);
-  extern size_t strlen(const char* text);
-
   if (parent == NULL) {
     parent = "";
   }
@@ -356,12 +299,6 @@ char* au_os_path_join(const char* parent, const char* child) {
 }
 
 au_os_dir_list_t* au_os_list_directories(const char* path) {
-  extern void* calloc(size_t count, size_t size);
-  extern void* realloc(void* ptr, size_t size);
-  extern void free(void* ptr);
-  extern int strcmp(const char* left, const char* right);
-  extern void qsort(void* base, size_t count, size_t size, int (*compar)(const void*, const void*));
-
   au_os_dir_list_t* list = (au_os_dir_list_t*) calloc(1, sizeof(au_os_dir_list_t));
   if (list == NULL) {
     au_abort_internal("au_os_list_directories: allocation failed.");
@@ -413,8 +350,6 @@ char* au_os_dir_list_get(au_os_dir_list_t* list, size_t index) {
 }
 
 void au_os_dir_list_free(au_os_dir_list_t* list) {
-  extern void free(void* ptr);
-
   if (list != NULL) {
     for (size_t i = 0; i < list->count; i++) {
       free(list->names[i]);
@@ -425,19 +360,11 @@ void au_os_dir_list_free(au_os_dir_list_t* list) {
 }
 
 char* au_os_read_file(const char* path) {
-  extern void* fopen(const char* path, const char* mode);
-  extern int fseek(void* stream, long offset, int whence);
-  extern long ftell(void* stream);
-  extern void rewind(void* stream);
-  extern size_t fread(void* ptr, size_t size, size_t count, void* stream);
-  extern int fclose(void* stream);
-  extern void* malloc(size_t size);
-
-  void* file = fopen(path, "rb");
+  FILE* file = fopen(path, "rb");
   if (file == NULL) {
     return NULL;
   }
-  if (fseek(file, 0, 2) != 0) {
+  if (fseek(file, 0, SEEK_END) != 0) {
     fclose(file);
     return NULL;
   }
@@ -459,12 +386,7 @@ char* au_os_read_file(const char* path) {
 }
 
 au_bool_t au_os_write_file(const char* path, const char* contents) {
-  extern void* fopen(const char* path, const char* mode);
-  extern size_t fwrite(const void* ptr, size_t size, size_t count, void* stream);
-  extern int fclose(void* stream);
-  extern size_t strlen(const char* text);
-
-  void* file = fopen(path, "wb");
+  FILE* file = fopen(path, "wb");
   if (file == NULL) {
     return false;
   }
@@ -478,12 +400,7 @@ au_bool_t au_os_write_file(const char* path, const char* contents) {
 }
 
 au_bool_t au_os_append_file(const char* path, const char* contents) {
-  extern void* fopen(const char* path, const char* mode);
-  extern size_t fwrite(const void* ptr, size_t size, size_t count, void* stream);
-  extern int fclose(void* stream);
-  extern size_t strlen(const char* text);
-
-  void* file = fopen(path, "ab");
+  FILE* file = fopen(path, "ab");
   if (file == NULL) {
     return false;
   }
@@ -497,8 +414,6 @@ au_bool_t au_os_append_file(const char* path, const char* contents) {
 }
 
 char* au_os_getenv(const char* name) {
-  extern char* getenv(const char* name);
-
   char* value = getenv(name);
   if (value == NULL) {
     return NULL;
@@ -515,10 +430,6 @@ struct au_os_command_result {
 };
 
 static char* au_os_shell_quote(const char* value) {
-  extern void* malloc(size_t size);
-  extern void* memcpy(void* destination, const void* source, size_t count);
-  extern size_t strlen(const char* text);
-
   if (value == NULL) {
     value = "";
   }
@@ -551,17 +462,6 @@ static char* au_os_read_temp_file(const char* path) {
 }
 
 au_os_command_result_t* au_os_run_command(const char* command, const char* stdin_text) {
-  extern int mkstemp(char* template);
-  extern int close(int fd);
-  extern long write(int fd, const void* buffer, size_t count);
-  extern int snprintf(char* str, size_t size, const char* format, ...);
-  extern int system(const char* command);
-  extern int unlink(const char* path);
-  extern void* calloc(size_t count, size_t size);
-  extern void* malloc(size_t size);
-  extern void free(void* ptr);
-  extern size_t strlen(const char* text);
-
   char stdout_path[] = "/tmp/austral_process_stdout_XXXXXX";
   char stderr_path[] = "/tmp/austral_process_stderr_XXXXXX";
   char stdin_path[] = "/tmp/austral_process_stdin_XXXXXX";
@@ -582,7 +482,7 @@ au_os_command_result_t* au_os_run_command(const char* command, const char* stdin
     }
     size_t stdin_len = strlen(stdin_text);
     if (stdin_len > 0) {
-      long written = write(stdin_fd, stdin_text, stdin_len);
+      ssize_t written = write(stdin_fd, stdin_text, stdin_len);
       if (written < 0) {
         au_abort_internal("au_os_run_command: could not write input file.");
       }
@@ -611,10 +511,12 @@ au_os_command_result_t* au_os_run_command(const char* command, const char* stdin
 
   int status = system(shell_command);
   int code = -1;
-  if (status != -1 && (status & 0x7f) == 0) {
-    code = (status >> 8) & 0xff;
+  if (status != -1 && WIFEXITED(status)) {
+    code = WEXITSTATUS(status);
+  } else if (status != -1 && WIFSIGNALED(status)) {
+    code = 128 + WTERMSIG(status);
   } else if (status != -1) {
-    code = 128 + (status & 0x7f);
+    code = status;
   }
 
   au_os_command_result_t* result =
@@ -660,8 +562,6 @@ char* au_os_command_stderr(au_os_command_result_t* result) {
 }
 
 void au_os_command_result_free(au_os_command_result_t* result) {
-  extern void free(void* ptr);
-
   if (result != NULL) {
     free(result->stdout_data);
     free(result->stderr_data);

@@ -1,4 +1,5 @@
 BIN := austral
+CC ?= cc
 SRC := lib/*.ml lib/*.mli lib/*.mll lib/*.mly lib/dune bin/dune bin/austral.ml lib/BuiltInModules.ml
 PREFIX ?= /usr/local
 
@@ -12,8 +13,12 @@ $(BIN): $(SRC)
 	dune build
 	cp _build/default/bin/austral.exe $(BIN)
 
+.PHONY: check-prelude
+check-prelude:
+	$(CC) -fsyntax-only -Wall -Wextra -Werror lib/prelude.c
+
 .PHONY: test
-test: $(BIN)
+test: $(BIN) check-prelude
 	dune runtest
 
 .PHONY: install

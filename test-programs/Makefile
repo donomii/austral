@@ -46,7 +46,7 @@ test: $(RUNNER_BIN)
 
 $(RUNNER_BIN): $(RUNNER_DEPS) ../austral
 	../austral compile $(RUNNER_MODULES) --entrypoint=TestPrograms.Runner.Main:main --target-type=c --output=$(RUNNER_C) --error-format=json
-	$(CC) -fwrapv -Wno-builtin-declaration-mismatch $(RUNNER_C) -lm -o $(RUNNER_BIN)
+	$(CC) -fwrapv $(RUNNER_C) -lm -o $(RUNNER_BIN)
 
 clean:
 	rm -rf suites/012-numbers/

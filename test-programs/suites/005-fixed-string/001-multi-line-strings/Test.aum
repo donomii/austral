@@ -1,12 +1,12 @@
 pragma Unsafe_Module;
 
 module body Test is
-    pragma Foreign_Import(External_Name => "putchar");
     function Put_Character(character: Nat8): Int32 is
+        return @embed(Int32, "au_os_fputc((int)$1, au_stdout())", character);
     end;
 
-    pragma Foreign_Import(External_Name => "puts");
     function Put_String(str: Span[Nat8, Static]): Int32 is
+        return @embed(Int32, "(au_printf(\"%.*s\n\", (int)($1).size, (char*)($1).data), 0)", str);
     end;
 
     function main(): ExitCode is
