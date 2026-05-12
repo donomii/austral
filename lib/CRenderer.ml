@@ -125,7 +125,7 @@ and render_stmt (i: indentation) (stmt: c_stmt): line list =
      let s = (e lvalue) ^ " = " ^ (e value) ^ ";" in
      [Line (i, s)]
   | CDiscarding value ->
-     [Line (i, (e value) ^ ";")]
+     [Line (i, "(void)(" ^ (e value) ^ ");")]
   | CIf (c, t, f) ->
      List.concat [
          [Line (i, "if (" ^ (e c) ^ ") {")];
@@ -162,6 +162,8 @@ and render_stmt (i: indentation) (stmt: c_stmt): line list =
        ]
   | CReturn v ->
      [Line (i, "return " ^ (e v) ^ ";")]
+  | CUnreachable ->
+     [Line (i, "abort();")]
   | CBlock ss ->
      List.concat (List.map (render_stmt i) ss)
   | CLocalFunctionDeclaration (name, params, rt, linkage) ->

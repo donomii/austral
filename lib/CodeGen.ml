@@ -299,6 +299,51 @@ let rec gen_exp (mn: module_name) (e: mexpr): c_expr =
 
 (* Statements *)
 
+let is_abort_call (name: qident): bool =
+  let mn: module_name = source_module_name name
+  and orig: identifier = original_name name
+  in
+  (((mod_name_string mn) = "Austral.Pervasive")
+   && ((ident_string orig) = "abort"))
+
+let mexpr_never_returns (expr: mexpr): bool =
+  match expr with
+  | MConcreteFuncall (_, name, _, _) ->
+     is_abort_call name
+  | _ ->
+     false
+
+let rec mstmt_always_returns (stmt: mstmt): bool =
+  match stmt with
+  | MReturn _ ->
+     true
+  | MLet (_, _, body) ->
+     mstmt_always_returns body
+  | MDestructure (_, _, body) ->
+     mstmt_always_returns body
+  | MIf (_, true_body, false_body) ->
+     mstmt_always_returns true_body && mstmt_always_returns false_body
+  | MCase (_, whens, _) ->
+     List.for_all when_always_returns whens
+  | MBorrow { body; _ } ->
+     mstmt_always_returns body
+  | MBlock (first, second) ->
+     mstmt_always_returns first || mstmt_always_returns second
+  | MSkip
+  | MAssign _
+  | MAssignVar _
+  | MInitialAssign _
+  | MWhile _
+  | MFor _
+  | MLetTmp _
+  | MAssignTmp _ ->
+     false
+  | MDiscarding expr ->
+     mexpr_never_returns expr
+
+and when_always_returns (MTypedWhen (_, _, body)): bool =
+  mstmt_always_returns body
+
 let rec gen_stmt (mn: module_name) (stmt: mstmt): c_stmt =
   let ge = gen_exp mn
   and gs = gen_stmt mn
@@ -395,10 +440,15 @@ and gen_case (mn: module_name) (e: mexpr) (whens: mtyped_when list) (case_ref: c
        CPointerStructAccessor (CVar var, "tag")
   in
   let switch = CSwitch (accessor, cases) in
-  CBlock [
+  let stmts = [
       CLet (var, gen_type ty, Some (gen_exp mn e));
       switch
     ]
+  in
+  if List.for_all when_always_returns whens then
+    CBlock (List.append stmts [CUnreachable])
+  else
+    CBlock stmts
 
 and when_to_case (mn: module_name) (ty: mono_ty) (var: string) (case_ref: case_ref) (MTypedWhen (n, bindings, body)): c_switch_case =
   let case_name = gen_ident n
