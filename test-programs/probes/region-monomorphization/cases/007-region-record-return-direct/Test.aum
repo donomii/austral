@@ -1,0 +1,22 @@
+module body Test is
+    record RegionValue[R: Region]: Free is
+        value: Int32;
+    end;
+
+    generic [R: Region]
+    function makeValue(ref: &[Int32, R]): RegionValue[R] is
+        return RegionValue(value => !ref);
+    end;
+
+    function main(): ExitCode is
+        let value: Int32 := 7;
+        borrow ref: &[Int32, Reg] := &value do
+            let wrapped: RegionValue[Reg] := makeValue(ref);
+            if wrapped.value /= 7 then
+                abort("wrong value");
+            end if;
+        end borrow;
+        return ExitSuccess();
+    end;
+end module body.
+

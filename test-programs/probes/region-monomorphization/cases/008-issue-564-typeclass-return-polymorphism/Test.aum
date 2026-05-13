@@ -1,0 +1,38 @@
+module body Test is
+    record Description[T: Type]: Type is end;
+
+    typeclass Shippable(T: Type) is
+        method description(): Description[T];
+    end;
+
+    record Cargo[T: Type(Shippable)]: Linear is
+        contents: T;
+    end;
+
+    generic [T: Type(Shippable)]
+    function loadCargo(t: T): Cargo[T] is
+        let desc: Description[T] := description();
+        let {} := desc;
+        let cargo: Cargo[T] := Cargo(contents => t);
+        return cargo;
+    end;
+
+    record Number: Free is
+        name: Int32;
+    end;
+
+    instance Shippable(Number) is
+        method description(): Description[Number] is
+            let result: Description[Number] := Description();
+            return result;
+        end;
+    end;
+
+    function main(): ExitCode is
+        let p1: Number := Number(name => 16);
+        let cp1: Cargo[Number] := loadCargo(p1);
+        let { contents: Number } := cp1;
+        return ExitSuccess();
+    end;
+end module body.
+

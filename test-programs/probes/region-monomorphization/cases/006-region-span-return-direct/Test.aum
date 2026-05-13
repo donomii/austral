@@ -1,0 +1,31 @@
+import Standard.Buffer (
+    Buffer,
+    allocateEmpty,
+    destroyFree,
+    getSpan,
+    insertBack,
+    length
+);
+
+module body Test is
+    generic [R: Region]
+    function fullSpan(buf: &[Buffer[Nat8], R]): Span[Nat8, R] is
+        return getSpan(buf, 0, length(buf) - 1);
+    end;
+
+    function main(): ExitCode is
+        var nums: Buffer[Nat8] := allocateEmpty();
+        insertBack(&!nums, 1 : Nat8);
+        insertBack(&!nums, 2 : Nat8);
+
+        borrow buf: &[Buffer[Nat8], BufReg] := &nums do
+            let sp: Span[Nat8, BufReg] := fullSpan(buf);
+            if spanLength(sp) /= 2 then
+                abort("wrong span length");
+            end if;
+        end borrow;
+
+        destroyFree(nums);
+        return ExitSuccess();
+    end;
+end module body.
