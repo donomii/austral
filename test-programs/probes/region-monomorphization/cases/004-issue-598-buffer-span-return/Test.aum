@@ -1,0 +1,39 @@
+import Standard.Buffer (
+    Buffer,
+    allocateEmpty,
+    destroyFree,
+    getSpan,
+    insertBack,
+    length
+);
+
+module body Test is
+    function main(): ExitCode is
+        var nums: Buffer[Nat8] := allocateEmpty();
+        var num: Nat8 := 0;
+        while num <= (5 : Nat8) do
+            insertBack(&!nums, num);
+            num := num + 1;
+        end while;
+
+        borrow buf: &[Buffer[Nat8], BufReg] := &nums do
+            let pairbuf: Buffer[Span[Nat8, BufReg]] := getPairs(buf);
+            destroyFree(pairbuf);
+        end borrow;
+
+        destroyFree(nums);
+        return ExitSuccess();
+    end;
+
+    generic [R: Region]
+    function getPairs(buf: &[Buffer[Nat8], R]): Buffer[Span[Nat8, R]] is
+        var offset: Index := 0;
+        var pairbuf: Buffer[Span[Nat8, R]] := allocateEmpty();
+        while (offset + 1) < length(buf) do
+            insertBack(&!pairbuf, getSpan(buf, offset, offset + 1));
+            offset := offset + 2;
+        end while;
+        return pairbuf;
+    end;
+end module body.
+

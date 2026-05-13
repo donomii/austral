@@ -1,0 +1,15 @@
+module body Test is
+    generic [R: Region]
+    function foo(a: &[Unit, R]): Unit is
+        return foo(a);
+    end;
+
+    function main(): ExitCode is
+        let value: Unit := nil;
+        if false then
+            foo(&value);
+        end if;
+        return ExitSuccess();
+    end;
+end module body.
+

@@ -1,0 +1,15 @@
+module body Test is
+    record Foo: Linear is end;
+    record Bar[R: Region]: Linear is end;
+
+    function main(): ExitCode is
+        let f: Foo := Foo();
+        borrow ref: &[Foo, Reg] := &f do
+            let b: Bar[Reg] := Bar();
+            let {} := b;
+        end borrow;
+        let {} := f;
+        return ExitSuccess();
+    end;
+end module body.
+

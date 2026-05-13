@@ -1,0 +1,36 @@
+import Standard.Buffer (
+    Buffer,
+    allocateEmpty,
+    destroyFree,
+    getSpan,
+    insertBack,
+    length
+);
+
+module body Test is
+    record SpanBox[R: Region]: Free is
+        value: Span[Nat8, R];
+    end;
+
+    generic [R: Region]
+    function makeBox(buf: &[Buffer[Nat8], R]): SpanBox[R] is
+        let sp: Span[Nat8, R] := getSpan(buf, 0, length(buf) - 1);
+        return SpanBox(value => sp);
+    end;
+
+    function main(): ExitCode is
+        var nums: Buffer[Nat8] := allocateEmpty();
+        insertBack(&!nums, 1 : Nat8);
+        insertBack(&!nums, 2 : Nat8);
+
+        borrow buf: &[Buffer[Nat8], BufReg] := &nums do
+            let box: SpanBox[BufReg] := makeBox(buf);
+            if spanLength(box.value) /= 2 then
+                abort("wrong span length");
+            end if;
+        end borrow;
+
+        destroyFree(nums);
+        return ExitSuccess();
+    end;
+end module body.
